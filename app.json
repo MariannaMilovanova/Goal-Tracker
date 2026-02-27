@@ -3,6 +3,7 @@
     "name": "one-goal",
     "slug": "one-goal",
     "version": "1.0.0",
+    "scheme": "onegoal",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +14,16 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mj.onegoal",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.mj.onegoal"
+        ]
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +35,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3cb209ac-28ef-46bb-be76-b7b7f7c7d2d8"
+      }
     }
   }
 }
