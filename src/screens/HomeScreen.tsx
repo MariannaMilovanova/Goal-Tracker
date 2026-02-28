@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 
 import { BigNumber } from '../components/BigNumber';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
@@ -11,6 +12,7 @@ import { canMarkDone, getLocalDateString } from '../utils/date';
 
 export function HomeScreen() {
   const { goal, markDone } = useGoalStore();
+  const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const previousCompleted = useRef(goal?.completedDays ?? 0);
@@ -73,21 +75,30 @@ export function HomeScreen() {
       <View style={styles.container}>
         <CelebrationOverlay visible={showCelebration} />
         <View style={styles.header}>
-          <Text style={styles.goalTitle}>{goal.title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.goalTitle}>{goal.title}</Text>
+            <Pressable
+              onPress={() => router.push('/edit-goal')}
+              accessibilityLabel="Edit goal"
+              style={styles.editButton}
+            >
+              <Text style={styles.editIcon}>⚙️</Text>
+            </Pressable>
+          </View>
           <Text style={styles.caption}>
             Day {Math.min(goal.completedDays + 1, goal.totalDays)} of {goal.totalDays}
-        </Text>
-      </View>
+          </Text>
+        </View>
 
-      <BigNumber value={goal.completedDays} label="Completed" />
+        <BigNumber value={goal.completedDays} label="Completed" />
 
-      <View style={styles.gridSection}>
-        <ProgressGrid
-          total={goal.totalDays}
-          completed={goal.completedDays}
-          highlightIndex={highlightIndex}
-        />
-      </View>
+        <View style={styles.gridSection}>
+          <ProgressGrid
+            total={goal.totalDays}
+            completed={goal.completedDays}
+            highlightIndex={highlightIndex}
+          />
+        </View>
 
         <View style={styles.footer}>
           <PrimaryButton
@@ -118,9 +129,27 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   goalTitle: {
     fontSize: 28,
     fontWeight: '700',
+    flex: 1,
+    marginRight: 12,
+  },
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F2F2',
+  },
+  editIcon: {
+    fontSize: 18,
   },
   caption: {
     marginTop: 6,

@@ -12,3 +12,11 @@ export type GoalInput = {
   totalDays: number;
   accentColor?: string;
 };
+
+export type GoalUpdate = {
+  title?: string;
+  totalDays?: number;
+  completedDays?: number;
+  lastCompletedDate?: string | null;
+  accentColor?: string;
+};

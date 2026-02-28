@@ -3,6 +3,51 @@
 ## Overview
 This plan breaks delivery into parallel workstreams with clear dependencies and acceptance criteria. The goal is a focused MVP: single goal, daily check-in, visual progress, celebration, and iOS widgets.
 
+---
+
+## Feature Plan — Allow Editing Goal (Must Have)
+
+### Scope
+Add an “Edit Goal” flow so a user can change title, total days, and (optionally) progress. Provide a reset option. Keep UI minimal.
+
+### UX Summary
+Home screen shows a small ⚙️ icon in the top-right that opens the Edit Goal screen. The screen allows:
+1. Edit title
+2. Edit total days
+3. Edit completed days behind an “Advanced” toggle
+4. Reset goal (destructive, with confirmation)
+
+### Data & Store Changes
+1. Extend store update API to accept `completedDays` and an optional `lastCompletedDate` override (or a flag indicating whether “today” should be counted).
+2. Clamp and validate values: `title` required and trimmed, `totalDays` minimum 1, `completedDays` between 0 and `totalDays`.
+3. When `completedDays` is edited, set `lastCompletedDate` to `null` unless the user explicitly chooses to mark today as done. This avoids blocking the next check-in.
+4. Ensure widget snapshot is updated after edits.
+
+### UI & Navigation
+1. Add top-right settings/gear button in Home header (no new dependencies required).
+2. Add new screen route `app/edit-goal.tsx`.
+3. Edit screen layout: title input, total days input or picker, “Advanced” toggle for editing completed days, completed days input shown only when toggle is on with helper text, primary “Save” button, secondary “Reset Goal” action with confirmation.
+4. On save, navigate back to Home and update store.
+5. On reset, clear goal and navigate to onboarding.
+
+### Validation & Edge Cases
+1. If `totalDays` is reduced below current `completedDays`, clamp `completedDays` and show a brief warning.
+2. If `completedDays == totalDays`, Home should show completed state and disable check-in.
+3. Editing title should keep case and spacing normalized (trim).
+
+### Tests
+1. Store unit tests: editing title updates and persists, editing total days clamps completed days, editing completed days respects bounds and clears `lastCompletedDate` by default.
+2. UI sanity: edit screen renders with existing values, save calls update and returns to Home, reset clears goal and returns to onboarding.
+
+### Dependencies
+Requires WS2 (store) and WS3 (UI).
+
+### Acceptance Criteria
+1. User can edit title and total days.
+2. User can optionally edit completed days via advanced toggle.
+3. Reset goal clears all data and returns to onboarding.
+4. Widgets reflect changes immediately after save/reset.
+
 ## Workstreams
 
 ### WS1 — Project Setup & Tooling

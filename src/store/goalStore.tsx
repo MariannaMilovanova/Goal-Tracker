@@ -5,7 +5,7 @@ import { clearWidgetSnapshot, writeWidgetSnapshot } from '../native/widgetBridge
 import { canMarkDone, getLocalDateString } from '../utils/date';
 import { normalizeGoal } from '../utils/goalValidation';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
-import { Goal, GoalInput } from './goalTypes';
+import { Goal, GoalInput, GoalUpdate } from './goalTypes';
 
 export type GoalStore = {
   goal: Goal | null;
@@ -14,7 +14,7 @@ export type GoalStore = {
   createGoal: (input: GoalInput) => Promise<Goal>;
   markDone: () => Promise<boolean>;
   resetGoal: () => Promise<void>;
-  updateGoal: (updates: Partial<GoalInput>) => Promise<Goal | null>;
+  updateGoal: (updates: GoalUpdate) => Promise<Goal | null>;
 };
 
 const STORAGE_KEY = 'one-goal/active-goal';
@@ -128,19 +128,36 @@ export function GoalProvider({
   }, [persistGoal, syncWidget]);
 
   const updateGoal = useCallback(
-    async (updates: Partial<GoalInput>) => {
+    async (updates: GoalUpdate) => {
       if (!goal) {
         return null;
       }
 
+      const nextTitleRaw = updates.title !== undefined ? updates.title.trim() : goal.title;
+      const nextTitle = nextTitleRaw.length > 0 ? nextTitleRaw : goal.title;
       const nextTotalDaysRaw = updates.totalDays ?? goal.totalDays;
       const nextTotalDays = Math.max(1, Math.floor(nextTotalDaysRaw));
+      const rawCompletedDays = updates.completedDays ?? goal.completedDays;
+      const normalizedCompletedDays = Math.max(0, Math.floor(rawCompletedDays));
+      const nextCompletedDays = Math.min(normalizedCompletedDays, nextTotalDays);
+
+      let nextLastCompletedDate = goal.lastCompletedDate;
+      if (updates.lastCompletedDate !== undefined) {
+        nextLastCompletedDate = updates.lastCompletedDate;
+      } else if (updates.completedDays !== undefined) {
+        nextLastCompletedDate = null;
+      }
+      if (nextCompletedDays === 0) {
+        nextLastCompletedDate = null;
+      }
+
       const nextGoal: Goal = {
         ...goal,
-        title: updates.title ? updates.title.trim() : goal.title,
+        title: nextTitle,
         totalDays: nextTotalDays,
         accentColor: updates.accentColor ?? goal.accentColor,
-        completedDays: Math.min(goal.completedDays, nextTotalDays),
+        completedDays: nextCompletedDays,
+        lastCompletedDate: nextLastCompletedDate,
       };
 
       setGoal(nextGoal);
