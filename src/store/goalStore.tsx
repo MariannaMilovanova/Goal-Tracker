@@ -13,6 +13,7 @@ export type GoalStore = {
   loadGoal: () => Promise<void>;
   createGoal: (input: GoalInput) => Promise<Goal>;
   markDone: () => Promise<boolean>;
+  undoToday: () => Promise<boolean>;
   resetGoal: () => Promise<void>;
   updateGoal: (updates: GoalUpdate) => Promise<Goal | null>;
 };
@@ -121,6 +122,31 @@ export function GoalProvider({
     return true;
   }, [goal, persistGoal, syncWidget]);
 
+  const undoToday = useCallback(async () => {
+    if (!goal) {
+      return false;
+    }
+
+    const today = getLocalDateString();
+    if (goal.lastCompletedDate !== today) {
+      return false;
+    }
+
+    if (goal.completedDays <= 0) {
+      return false;
+    }
+
+    const nextGoal: Goal = {
+      ...goal,
+      completedDays: goal.completedDays - 1,
+      lastCompletedDate: null,
+    };
+    setGoal(nextGoal);
+    await persistGoal(nextGoal);
+    await syncWidget(nextGoal);
+    return true;
+  }, [goal, persistGoal, syncWidget]);
+
   const resetGoal = useCallback(async () => {
     setGoal(null);
     await persistGoal(null);
@@ -181,10 +207,11 @@ export function GoalProvider({
       loadGoal,
       createGoal,
       markDone,
+      undoToday,
       resetGoal,
       updateGoal,
     }),
-    [goal, isLoading, loadGoal, createGoal, markDone, resetGoal, updateGoal],
+    [goal, isLoading, loadGoal, createGoal, markDone, undoToday, resetGoal, updateGoal],
   );
 
   return <GoalContext.Provider value={value}>{children}</GoalContext.Provider>;

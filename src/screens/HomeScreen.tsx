@@ -2,16 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { BigNumber } from '../components/BigNumber';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProgressGrid } from '../components/ProgressGrid';
 import { useGoalStore } from '../store/goalStore';
-import { canMarkDone, getLocalDateString } from '../utils/date';
+import { canMarkDone, canUndoToday, getLocalDateString } from '../utils/date';
 
 export function HomeScreen() {
-  const { goal, markDone } = useGoalStore();
+  const { goal, markDone, undoToday, updateGoal, resetGoal } = useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -27,6 +28,17 @@ export function HomeScreen() {
     }
     const today = getLocalDateString();
     return canMarkDone(today, goal.lastCompletedDate);
+  }, [goal]);
+
+  const canUndo = useMemo(() => {
+    if (!goal) {
+      return false;
+    }
+    if (goal.completedDays <= 0) {
+      return false;
+    }
+    const today = getLocalDateString();
+    return canUndoToday(today, goal.lastCompletedDate);
   }, [goal]);
 
   useEffect(() => {
@@ -70,6 +82,24 @@ export function HomeScreen() {
     }
   };
 
+  const handleUndoToday = async () => {
+    const didUndo = await undoToday();
+    if (didUndo) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleStartAgain = async () => {
+    const updated = await updateGoal({ completedDays: 0 });
+    if (updated) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  };
+
+  const handleNewGoal = async () => {
+    await resetGoal();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -82,7 +112,7 @@ export function HomeScreen() {
               accessibilityLabel="Edit goal"
               style={styles.editButton}
             >
-              <Text style={styles.editIcon}>⚙️</Text>
+              <Ionicons name="settings-outline" size={22} color="#4A4A4A" />
             </Pressable>
           </View>
           <Text style={styles.caption}>
@@ -101,14 +131,46 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.footer}>
-          <PrimaryButton
-            label={goal.completedDays >= goal.totalDays ? 'Goal complete' : 'Mark as done'}
-            onPress={handleMarkDone}
-            disabled={!canCompleteToday}
-          />
-          {!canCompleteToday && goal.completedDays < goal.totalDays ? (
-            <Text style={styles.hint}>Come back tomorrow.</Text>
-          ) : null}
+          {goal.completedDays >= goal.totalDays ? (
+            <View style={styles.completedCard}>
+              <Text style={styles.completedTitle}>🎉 Goal completed</Text>
+              <PrimaryButton label="Start again" onPress={handleStartAgain} />
+              <Pressable
+                onPress={handleNewGoal}
+                accessibilityRole="button"
+                style={styles.newGoalButton}
+              >
+                <Text style={styles.newGoalText}>New goal</Text>
+              </Pressable>
+              {canUndo ? (
+                <Pressable
+                  onPress={handleUndoToday}
+                  accessibilityRole="button"
+                  style={styles.undoButton}
+                >
+                  <Text style={styles.undoText}>Undo today</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : (
+            <>
+              <PrimaryButton
+                label="Mark as done"
+                onPress={handleMarkDone}
+                disabled={!canCompleteToday}
+              />
+              {canUndo ? (
+                <Pressable
+                  onPress={handleUndoToday}
+                  accessibilityRole="button"
+                  style={styles.undoButton}
+                >
+                  <Text style={styles.undoText}>Undo today</Text>
+                </Pressable>
+              ) : null}
+              {!canCompleteToday ? <Text style={styles.hint}>Come back tomorrow.</Text> : null}
+            </>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -143,13 +205,8 @@ const styles = StyleSheet.create({
   editButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F2F2',
-  },
-  editIcon: {
-    fontSize: 18,
   },
   caption: {
     marginTop: 6,
@@ -162,6 +219,35 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     paddingBottom: 24,
     alignItems: 'center',
+  },
+  completedCard: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
+  completedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111',
+  },
+  newGoalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  newGoalText: {
+    color: '#111',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  undoButton: {
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  undoText: {
+    color: '#4A4A4A',
+    fontSize: 14,
+    fontWeight: '600',
   },
   hint: {
     marginTop: 12,

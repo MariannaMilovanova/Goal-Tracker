@@ -11,3 +11,7 @@ export function canMarkDone(today: string, lastCompletedDate: string | null): bo
   }
   return lastCompletedDate < today;
 }
+
+export function canUndoToday(today: string, lastCompletedDate: string | null): boolean {
+  return lastCompletedDate === today;
+}

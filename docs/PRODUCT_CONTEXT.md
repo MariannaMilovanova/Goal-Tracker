@@ -1,4 +1,4 @@
-# One Goal App Context
+# One Goal - True Focus App
 
 ## Product summary
 - Name (working): One Goal / ONE
@@ -16,7 +16,7 @@
 - Big number: completedDays
 - Progress grid: totalDays cells
 - Completed cells = green
-- Remaining cells = grey
+- Remaining cells = grey![img.png](img.png)
 - Button: Mark as done
 - Rule: can mark done only once per local calendar day
 
