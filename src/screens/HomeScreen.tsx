@@ -16,7 +16,9 @@ export function HomeScreen() {
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationValues, setCelebrationValues] = useState({ from: 0, to: 0 });
   const previousCompleted = useRef(goal?.completedDays ?? 0);
+  const isCompleting = useRef(false);
   const hasInitialized = useRef(false);
 
   const canCompleteToday = useMemo(() => {
@@ -57,14 +59,13 @@ export function HomeScreen() {
     const prev = previousCompleted.current;
     if (goal.completedDays > prev) {
       setHighlightIndex(goal.completedDays - 1);
+      setCelebrationValues({ from: prev, to: goal.completedDays });
       setShowCelebration(true);
       const highlightTimer = setTimeout(() => setHighlightIndex(null), 650);
-      const celebrateTimer = setTimeout(() => setShowCelebration(false), 1100);
 
       previousCompleted.current = goal.completedDays;
       return () => {
         clearTimeout(highlightTimer);
-        clearTimeout(celebrateTimer);
       };
     }
 
@@ -76,7 +77,12 @@ export function HomeScreen() {
   }
 
   const handleMarkDone = async () => {
+    if (isCompleting.current || showCelebration) {
+      return;
+    }
+    isCompleting.current = true;
     const didMark = await markDone();
+    isCompleting.current = false;
     if (didMark) {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
@@ -103,7 +109,12 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <CelebrationOverlay visible={showCelebration} />
+        <CelebrationOverlay
+          visible={showCelebration}
+          fromValue={celebrationValues.from}
+          toValue={celebrationValues.to}
+          onFinish={() => setShowCelebration(false)}
+        />
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Text style={styles.goalTitle}>{goal.title}</Text>

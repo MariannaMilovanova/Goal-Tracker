@@ -1,12 +1,8 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 type ProgressGridProps = {
   total: number;
@@ -15,33 +11,67 @@ type ProgressGridProps = {
 };
 
 const GRID_PADDING = 24;
-const CELL_SIZE = 16;
-const CELL_GAP = 6;
+const CELL_SIZE = 24;
+const CELL_GAP = 8;
+const CELL_RADIUS = 8;
 
-function GridCell({ isComplete, isHighlighted }: { isComplete: boolean; isHighlighted: boolean }) {
-  const progress = useSharedValue(isComplete ? 1 : 0);
+function GridCell({
+  isComplete,
+  isHighlighted,
+  index,
+}: {
+  isComplete: boolean;
+  isHighlighted: boolean;
+  index: number;
+}) {
   const scale = useSharedValue(1);
-
-  useEffect(() => {
-    progress.value = withTiming(isComplete ? 1 : 0, { duration: 280 });
-  }, [isComplete, progress]);
 
   useEffect(() => {
     if (!isHighlighted) {
       return;
     }
-    scale.value = withSequence(
-      withTiming(1.25, { duration: 160 }),
-      withTiming(1, { duration: 200 }),
-    );
+    scale.value = 0.85;
+    scale.value = withSpring(1, { damping: 14, stiffness: 180, mass: 0.7 });
   }, [isHighlighted, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], ['#D9D9D9', '#2ECC71']),
     transform: [{ scale: scale.value }],
   }));
 
-  return <Animated.View style={[styles.cell, animatedStyle]} />;
+  const gradientId = `progressGradient-${index}`;
+
+  return (
+    <Animated.View
+      style={[
+        styles.cell,
+        isComplete ? styles.cellComplete : styles.cellInactive,
+        animatedStyle,
+      ]}
+    >
+      <View style={[styles.fill, isComplete ? null : styles.fillInactive]}>
+        {isComplete ? (
+          <>
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#46E08C" stopOpacity="1" />
+                  <Stop offset="100%" stopColor="#1FAE63" stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
+              <Rect
+                width="100%"
+                height="100%"
+                rx={CELL_RADIUS}
+                ry={CELL_RADIUS}
+                fill={`url(#${gradientId})`}
+              />
+            </Svg>
+            <Ionicons name="checkmark-sharp" size={16} color="#FFFFFF" style={styles.checkIcon} />
+          </>
+        ) : null}
+      </View>
+    </Animated.View>
+  );
 }
 
 export function ProgressGrid({ total, completed, highlightIndex }: ProgressGridProps) {
@@ -52,7 +82,12 @@ export function ProgressGrid({ total, completed, highlightIndex }: ProgressGridP
           const isComplete = index < completed;
           const isHighlighted = highlightIndex === index;
           return (
-            <GridCell key={index} isComplete={isComplete} isHighlighted={isHighlighted} />
+            <GridCell
+              key={index}
+              index={index}
+              isComplete={isComplete}
+              isHighlighted={isHighlighted}
+            />
           );
         })}
       </View>
@@ -73,6 +108,33 @@ const styles = StyleSheet.create({
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
-    borderRadius: 4,
+    borderRadius: CELL_RADIUS,
+  },
+  cellInactive: {
+    backgroundColor: 'transparent',
+  },
+  cellComplete: {
+    shadowColor: '#1FAE63',
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  fill: {
+    width: '100%',
+    height: '100%',
+    borderRadius: CELL_RADIUS,
+    overflow: 'hidden',
+  },
+  fillInactive: {
+    backgroundColor: '#E6E6E6',
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+  },
+  checkIcon: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '50%',
+    marginTop: -8,
   },
 });
