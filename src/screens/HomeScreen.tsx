@@ -59,8 +59,6 @@ export function HomeScreen() {
     const prev = previousCompleted.current;
     if (goal.completedDays > prev) {
       setHighlightIndex(goal.completedDays - 1);
-      setCelebrationValues({ from: prev, to: goal.completedDays });
-      setShowCelebration(true);
       const highlightTimer = setTimeout(() => setHighlightIndex(null), 650);
 
       previousCompleted.current = goal.completedDays;
@@ -80,10 +78,17 @@ export function HomeScreen() {
     if (isCompleting.current || showCelebration) {
       return;
     }
+    if (!goal) {
+      return;
+    }
     isCompleting.current = true;
+    const fromValue = goal.completedDays;
+    const toValue = fromValue + 1;
     const didMark = await markDone();
     isCompleting.current = false;
     if (didMark) {
+      setCelebrationValues({ from: fromValue, to: toValue });
+      setShowCelebration(true);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };

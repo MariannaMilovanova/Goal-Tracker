@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -27,7 +28,7 @@ export function CelebrationOverlay({
   onFinish,
 }: CelebrationOverlayProps) {
   const isAnimating = useRef(false);
-  const lottieRef = useRef<LottieView>(null);
+  const isMounted = useRef(true);
   const overlayOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.92);
@@ -37,6 +38,12 @@ export function CelebrationOverlay({
   const newOpacity = useSharedValue(0);
   const oldTranslateY = useSharedValue(0);
   const newTranslateY = useSharedValue(14);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -61,10 +68,17 @@ export function CelebrationOverlay({
     oldTranslateY.value = 0;
     newTranslateY.value = 14;
 
-    lottieRef.current?.reset();
-    lottieRef.current?.play();
-
-    overlayOpacity.value = withTiming(1, { duration: 140 });
+    overlayOpacity.value = withSequence(
+      withTiming(1, { duration: 140 }),
+      withDelay(
+        840,
+        withTiming(0, { duration: 220 }, (finished) => {
+          if (finished) {
+            runOnJS(finishAnimation)();
+          }
+        })
+      )
+    );
     contentOpacity.value = withDelay(40, withTiming(1, { duration: 180 }));
     contentScale.value = withDelay(40, withSpring(1, { damping: 14, stiffness: 180 }));
     fireScale.value = withDelay(60, withSpring(1, { damping: 12, stiffness: 200 }));
@@ -76,18 +90,14 @@ export function CelebrationOverlay({
     newTranslateY.value = withDelay(120, withTiming(0, { duration: 360 }));
 
     const finishAnimation = () => {
+      if (!isMounted.current) {
+        return;
+      }
       isAnimating.current = false;
       onFinish?.();
     };
 
-    overlayOpacity.value = withDelay(
-      980,
-      withTiming(0, { duration: 220 }, (finished) => {
-        if (finished) {
-          runOnJS(finishAnimation)();
-        }
-      })
-    );
+    // overlayOpacity is sequenced above to avoid canceling the fade-in.
   }, [
     contentOpacity,
     contentScale,
@@ -138,9 +148,10 @@ export function CelebrationOverlay({
       <View style={styles.backdrop} />
       <Animated.View style={[styles.content, contentStyle]}>
         <LottieView
-          ref={lottieRef}
+          key={`celebration-${fromValue}-${toValue}`}
           source={LOTTIE_SOURCE}
           style={styles.lottie}
+          autoPlay
           loop={false}
         />
         <Animated.Text style={[styles.emoji, fireStyle]}>🔥</Animated.Text>
