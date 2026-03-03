@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Constants from 'expo-constants';
 import LottieView from 'lottie-react-native';
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -20,6 +20,8 @@ type CelebrationOverlayProps = {
 };
 
 const LOTTIE_SOURCE = require('../../assets/lottie/goal-pop.json');
+const isExpoGo =
+  Constants.appOwnership === 'expo' || Constants.appOwnership === 'guest';
 
 export function CelebrationOverlay({
   visible,
@@ -29,6 +31,7 @@ export function CelebrationOverlay({
 }: CelebrationOverlayProps) {
   const isAnimating = useRef(false);
   const isMounted = useRef(true);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.92);
@@ -42,6 +45,10 @@ export function CelebrationOverlay({
   useEffect(() => {
     return () => {
       isMounted.current = false;
+      if (finishTimer.current) {
+        clearTimeout(finishTimer.current);
+        finishTimer.current = null;
+      }
     };
   }, []);
 
@@ -50,6 +57,10 @@ export function CelebrationOverlay({
       isAnimating.current = false;
       overlayOpacity.value = 0;
       contentOpacity.value = 0;
+      if (finishTimer.current) {
+        clearTimeout(finishTimer.current);
+        finishTimer.current = null;
+      }
       return;
     }
     if (isAnimating.current) {
@@ -70,14 +81,7 @@ export function CelebrationOverlay({
 
     overlayOpacity.value = withSequence(
       withTiming(1, { duration: 140 }),
-      withDelay(
-        840,
-        withTiming(0, { duration: 220 }, (finished) => {
-          if (finished) {
-            runOnJS(finishAnimation)();
-          }
-        })
-      )
+      withDelay(840, withTiming(0, { duration: 220 }))
     );
     contentOpacity.value = withDelay(40, withTiming(1, { duration: 180 }));
     contentScale.value = withDelay(40, withSpring(1, { damping: 14, stiffness: 180 }));
@@ -89,15 +93,16 @@ export function CelebrationOverlay({
     newOpacity.value = withDelay(120, withTiming(1, { duration: 360 }));
     newTranslateY.value = withDelay(120, withTiming(0, { duration: 360 }));
 
-    const finishAnimation = () => {
+    if (finishTimer.current) {
+      clearTimeout(finishTimer.current);
+    }
+    finishTimer.current = setTimeout(() => {
       if (!isMounted.current) {
         return;
       }
       isAnimating.current = false;
       onFinish?.();
-    };
-
-    // overlayOpacity is sequenced above to avoid canceling the fade-in.
+    }, 1100);
   }, [
     contentOpacity,
     contentScale,
@@ -147,13 +152,15 @@ export function CelebrationOverlay({
     <Animated.View style={[styles.overlay, overlayStyle]} pointerEvents="auto">
       <View style={styles.backdrop} />
       <Animated.View style={[styles.content, contentStyle]}>
-        <LottieView
-          key={`celebration-${fromValue}-${toValue}`}
-          source={LOTTIE_SOURCE}
-          style={styles.lottie}
-          autoPlay
-          loop={false}
-        />
+        {!isExpoGo ? (
+          <LottieView
+            key={`celebration-${fromValue}-${toValue}`}
+            source={LOTTIE_SOURCE}
+            style={styles.lottie}
+            autoPlay
+            loop={false}
+          />
+        ) : null}
         <Animated.Text style={[styles.emoji, fireStyle]}>🔥</Animated.Text>
         <View style={styles.numberWrapper}>
           <View style={styles.shine} />
@@ -211,12 +218,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 140,
     height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 0 },
     elevation: 6,
   },
   numberStack: {
