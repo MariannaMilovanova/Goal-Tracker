@@ -9,7 +9,7 @@ import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProgressGrid } from '../components/ProgressGrid';
 import { useGoalStore } from '../store/goalStore';
-import { canMarkDone, canUndoToday, getLocalDateString } from '../utils/date';
+import { canMarkDone, canUndoToday, getDateDiffInDays, getLocalDateString } from '../utils/date';
 
 export function HomeScreen() {
   const { goal, markDone, undoToday, updateGoal, resetGoal } = useGoalStore();
@@ -28,6 +28,16 @@ export function HomeScreen() {
     () => (goal ? goal.totalDays + skippedDays : 0),
     [goal, skippedDays],
   );
+  const elapsedDays = useMemo(() => {
+    if (!goal) {
+      return 0;
+    }
+    const today = getLocalDateString();
+    const start = getLocalDateString(new Date(goal.createdAt));
+    const dayDiff = getDateDiffInDays(start, today);
+    const inclusiveDays = dayDiff + 1;
+    return Math.max(0, Math.min(inclusiveDays, visibleTotalDays));
+  }, [goal, visibleTotalDays]);
 
   const canCompleteToday = useMemo(() => {
     if (!goal) {
@@ -160,7 +170,9 @@ export function HomeScreen() {
             <ProgressGrid
               total={visibleTotalDays}
               timeline={goal.timeline}
+              elapsedDays={elapsedDays}
               highlightIndex={highlightIndex}
+              startDate={goal.createdAt}
               onFrozenCellPress={handleFrozenCellPress}
             />
           </View>
@@ -220,7 +232,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 24,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingRight: 24,
+    paddingLeft: 24,
     backgroundColor: '#FFFFFF',
   },
   fixedHeaderSection: {
@@ -234,8 +249,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   header: {
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 8,
+    marginBottom: 12,
   },
   titleRow: {
     flexDirection: 'row',
@@ -259,12 +274,12 @@ const styles = StyleSheet.create({
     color: '#6B6B6B',
   },
   gridSection: {
-    marginTop: 32,
+    marginTop: 16,
   },
   footer: {
     flexShrink: 0,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 12,
     alignItems: 'center',
   },
   completedCard: {
