@@ -1,7 +1,10 @@
+export type GoalDayState = 'completed' | 'skipped';
+
 export type Goal = {
   title: string;
   totalDays: number;
   completedDays: number;
+  timeline: GoalDayState[];
   lastCompletedDate: string | null;
   createdAt: string;
   accentColor?: string;

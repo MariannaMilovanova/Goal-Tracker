@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +20,14 @@ export function HomeScreen() {
   const previousCompleted = useRef(goal?.completedDays ?? 0);
   const isCompleting = useRef(false);
   const hasInitialized = useRef(false);
+  const skippedDays = useMemo(
+    () => goal?.timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0) ?? 0,
+    [goal?.timeline],
+  );
+  const visibleTotalDays = useMemo(
+    () => (goal ? goal.totalDays + skippedDays : 0),
+    [goal, skippedDays],
+  );
 
   const canCompleteToday = useMemo(() => {
     if (!goal) {
@@ -58,7 +66,10 @@ export function HomeScreen() {
 
     const prev = previousCompleted.current;
     if (goal.completedDays > prev) {
-      setHighlightIndex(goal.completedDays - 1);
+      const latestCompletedIndex = goal.timeline.lastIndexOf('completed');
+      if (latestCompletedIndex >= 0) {
+        setHighlightIndex(latestCompletedIndex);
+      }
       const highlightTimer = setTimeout(() => setHighlightIndex(null), 650);
 
       previousCompleted.current = goal.completedDays;
@@ -111,6 +122,10 @@ export function HomeScreen() {
     await resetGoal();
   };
 
+  const handleFrozenCellPress = () => {
+    Alert.alert('Day skipped', 'The chain continues today.');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -120,31 +135,36 @@ export function HomeScreen() {
           toValue={celebrationValues.to}
           onFinish={() => setShowCelebration(false)}
         />
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <Text style={styles.goalTitle}>{goal.title}</Text>
-            <Pressable
-              onPress={() => router.push('/edit-goal')}
-              accessibilityLabel="Edit goal"
-              style={styles.editButton}
-            >
-              <Ionicons name="settings-outline" size={22} color="#4A4A4A" />
-            </Pressable>
+        <View style={styles.fixedHeaderSection}>
+          <View style={styles.header}>
+            <View style={styles.titleRow}>
+              <Text style={styles.goalTitle}>{goal.title}</Text>
+              <Pressable
+                onPress={() => router.push('/edit-goal')}
+                accessibilityLabel="Edit goal"
+                style={styles.editButton}
+              >
+                <Ionicons name="settings-outline" size={22} color="#4A4A4A" />
+              </Pressable>
+            </View>
+            <Text style={styles.caption}>
+              Day {Math.min(goal.completedDays + 1, goal.totalDays)} of {goal.totalDays}
+            </Text>
           </View>
-          <Text style={styles.caption}>
-            Day {Math.min(goal.completedDays + 1, goal.totalDays)} of {goal.totalDays}
-          </Text>
+
+          <BigNumber value={goal.completedDays} label="Completed" />
         </View>
 
-        <BigNumber value={goal.completedDays} label="Completed" />
-
-        <View style={styles.gridSection}>
-          <ProgressGrid
-            total={goal.totalDays}
-            completed={goal.completedDays}
-            highlightIndex={highlightIndex}
-          />
-        </View>
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.gridSection}>
+            <ProgressGrid
+              total={visibleTotalDays}
+              timeline={goal.timeline}
+              highlightIndex={highlightIndex}
+              onFrozenCellPress={handleFrozenCellPress}
+            />
+          </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           {goal.completedDays >= goal.totalDays ? (
@@ -203,6 +223,16 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: '#FFFFFF',
   },
+  fixedHeaderSection: {
+    flexShrink: 0,
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 12,
+  },
   header: {
     marginTop: 16,
     marginBottom: 24,
@@ -232,7 +262,8 @@ const styles = StyleSheet.create({
     marginTop: 32,
   },
   footer: {
-    marginTop: 'auto',
+    flexShrink: 0,
+    paddingTop: 16,
     paddingBottom: 24,
     alignItems: 'center',
   },

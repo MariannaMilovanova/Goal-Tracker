@@ -43,6 +43,7 @@ describe('GoalStore', () => {
 
     expect(storeRef?.goal?.title).toBe('Read');
     expect(storeRef?.goal?.completedDays).toBe(0);
+    expect(storeRef?.goal?.timeline).toEqual([]);
     expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
   });
 
@@ -61,6 +62,7 @@ describe('GoalStore', () => {
     });
 
     expect(storeRef?.goal?.completedDays).toBe(1);
+    expect(storeRef?.goal?.timeline).toContain('completed');
 
     await act(async () => {
       const result = await storeRef?.markDone();

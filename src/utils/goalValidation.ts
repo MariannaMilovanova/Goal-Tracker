@@ -1,4 +1,4 @@
-import { Goal } from '../store/goalTypes';
+import { Goal, GoalDayState } from '../store/goalTypes';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -19,6 +19,10 @@ export function normalizeGoal(raw: unknown): Goal | null {
     : 0;
   const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : '';
   const accentColor = typeof candidate.accentColor === 'string' ? candidate.accentColor : undefined;
+  const rawTimeline = Array.isArray(candidate.timeline) ? candidate.timeline : [];
+  const timeline = rawTimeline.filter(
+    (entry): entry is GoalDayState => entry === 'completed' || entry === 'skipped',
+  );
 
   const lastCompletedDate =
     candidate.lastCompletedDate === null
@@ -35,10 +39,28 @@ export function normalizeGoal(raw: unknown): Goal | null {
     return null;
   }
 
+  let normalizedCompleted = Math.min(Math.max(completedDays, 0), totalDays);
+  let normalizedTimeline: GoalDayState[] = Array.from(
+    { length: normalizedCompleted },
+    () => 'completed',
+  );
+
+  if (timeline.length > 0) {
+    normalizedCompleted = 0;
+    normalizedTimeline = timeline.map((entry) => {
+      if (entry === 'completed' && normalizedCompleted < totalDays) {
+        normalizedCompleted += 1;
+        return 'completed';
+      }
+      return 'skipped';
+    });
+  }
+
   return {
     title,
     totalDays,
-    completedDays: Math.min(Math.max(completedDays, 0), totalDays),
+    completedDays: normalizedCompleted,
+    timeline: normalizedTimeline,
     lastCompletedDate,
     createdAt,
     accentColor,

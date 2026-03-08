@@ -16,6 +16,22 @@ describe('normalizeGoal', () => {
     });
 
     expect(goal?.completedDays).toBe(10);
+    expect(goal?.timeline).toHaveLength(10);
+    expect(goal?.timeline.every((entry) => entry === 'completed')).toBe(true);
+  });
+
+  it('keeps skipped days when timeline is provided', () => {
+    const goal = normalizeGoal({
+      title: 'Read',
+      totalDays: 10,
+      completedDays: 1,
+      timeline: ['completed', 'skipped', 'completed', 'invalid'],
+      lastCompletedDate: '2025-01-03',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    });
+
+    expect(goal?.completedDays).toBe(2);
+    expect(goal?.timeline).toEqual(['completed', 'skipped', 'completed']);
   });
 
   it('rejects invalid date format', () => {

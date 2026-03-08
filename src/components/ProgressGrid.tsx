@@ -1,28 +1,35 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { GoalDayState } from '../store/goalTypes';
 
 type ProgressGridProps = {
   total: number;
-  completed: number;
+  timeline: GoalDayState[];
   highlightIndex?: number | null;
+  onFrozenCellPress?: () => void;
 };
 
 const GRID_PADDING = 24;
-const CELL_SIZE = 24;
-const CELL_GAP = 8;
-const CELL_RADIUS = 8;
+const GRID_COLUMNS = 7;
+const CELL_SIZE = 40;
+const CELL_GAP = 6;
+const CELL_RADIUS = 12;
+const FROZEN_CELL_SOURCE = require('../../assets/frozen-cell.png');
+const GRID_WIDTH = GRID_COLUMNS * CELL_SIZE + (GRID_COLUMNS - 1) * CELL_GAP;
 
 function GridCell({
-  isComplete,
+  state,
   isHighlighted,
   index,
+  onFrozenCellPress,
 }: {
-  isComplete: boolean;
+  state: GoalDayState | 'future';
   isHighlighted: boolean;
   index: number;
+  onFrozenCellPress?: () => void;
 }) {
   const scale = useSharedValue(1);
 
@@ -34,11 +41,29 @@ function GridCell({
     scale.value = withSpring(1, { damping: 14, stiffness: 180, mass: 0.7 });
   }, [isHighlighted, scale]);
 
+  const gradientId = `progressGradient-${index}`;
+  const isComplete = state === 'completed';
+  const isFrozen = state === 'skipped';
+  const frozenScaleBoost = isFrozen ? 1.08 : 1;
+
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ scale: scale.value * frozenScaleBoost }],
   }));
 
-  const gradientId = `progressGradient-${index}`;
+  if (isFrozen) {
+    return (
+      <Animated.View style={[styles.cell, styles.frozenCell, animatedStyle]}>
+        <Pressable
+          onPress={onFrozenCellPress}
+          accessibilityRole="button"
+          accessibilityLabel="Skipped day"
+          style={styles.frozenPressable}
+        >
+          <Image source={FROZEN_CELL_SOURCE} style={styles.frozenImage} resizeMode="cover" />
+        </Pressable>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View
@@ -66,7 +91,7 @@ function GridCell({
                 fill={`url(#${gradientId})`}
               />
             </Svg>
-            <Ionicons name="checkmark-sharp" size={16} color="#FFFFFF" style={styles.checkIcon} />
+            <Ionicons name="checkmark-sharp" size={24} color="#FFFFFF" style={styles.checkIcon} />
           </>
         ) : null}
       </View>
@@ -74,19 +99,20 @@ function GridCell({
   );
 }
 
-export function ProgressGrid({ total, completed, highlightIndex }: ProgressGridProps) {
+export function ProgressGrid({ total, timeline, highlightIndex, onFrozenCellPress }: ProgressGridProps) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.grid}>
         {Array.from({ length: total }).map((_, index) => {
-          const isComplete = index < completed;
+          const state = timeline[index] ?? 'future';
           const isHighlighted = highlightIndex === index;
           return (
             <GridCell
               key={index}
               index={index}
-              isComplete={isComplete}
+              state={state}
               isHighlighted={isHighlighted}
+              onFrozenCellPress={onFrozenCellPress}
             />
           );
         })}
@@ -99,15 +125,29 @@ const styles = StyleSheet.create({
   wrapper: {
     width: '100%',
     paddingHorizontal: GRID_PADDING,
+    alignItems: 'center',
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: CELL_GAP,
+    width: GRID_WIDTH,
   },
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
+    borderRadius: CELL_RADIUS,
+  },
+  frozenCell: {
+    overflow: 'hidden',
+  },
+  frozenPressable: {
+    width: '100%',
+    height: '100%',
+  },
+  frozenImage: {
+    width: '100%',
+    height: '100%',
     borderRadius: CELL_RADIUS,
   },
   cellInactive: {
@@ -115,10 +155,10 @@ const styles = StyleSheet.create({
   },
   cellComplete: {
     shadowColor: '#1FAE63',
-    shadowOpacity: 0.22,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   fill: {
     width: '100%',
@@ -135,6 +175,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     top: '50%',
-    marginTop: -8,
+    marginTop: -12,
   },
 });

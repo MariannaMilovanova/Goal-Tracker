@@ -23,6 +23,7 @@ const styles = StyleSheet.create({
   },
   label: {
     marginTop: 4,
+    paddingBottom: 10,
     fontSize: 14,
     color: '#6B6B6B',
     textTransform: 'uppercase',

@@ -22,6 +22,15 @@ type CelebrationOverlayProps = {
 const LOTTIE_SOURCE = require('../../assets/lottie/goal-pop.json');
 const isExpoGo =
   Constants.appOwnership === 'expo' || Constants.appOwnership === 'guest';
+const OVERLAY_FADE_IN_MS = 360;
+const OVERLAY_HOLD_MS = 1960;
+const OVERLAY_FADE_OUT_MS = 520;
+const CONTENT_DELAY_MS = 120;
+const CONTENT_FADE_IN_MS = 440;
+const NUMBER_SWAP_DELAY_MS = 320;
+const OLD_NUMBER_SWAP_MS = 920;
+const NEW_NUMBER_SWAP_MS = 1080;
+const FINISH_MS = OVERLAY_FADE_IN_MS + OVERLAY_HOLD_MS + OVERLAY_FADE_OUT_MS;
 
 export function CelebrationOverlay({
   visible,
@@ -80,18 +89,24 @@ export function CelebrationOverlay({
     newTranslateY.value = 14;
 
     overlayOpacity.value = withSequence(
-      withTiming(1, { duration: 140 }),
-      withDelay(840, withTiming(0, { duration: 220 }))
+      withTiming(1, { duration: OVERLAY_FADE_IN_MS }),
+      withDelay(OVERLAY_HOLD_MS, withTiming(0, { duration: OVERLAY_FADE_OUT_MS }))
     );
-    contentOpacity.value = withDelay(40, withTiming(1, { duration: 180 }));
-    contentScale.value = withDelay(40, withSpring(1, { damping: 14, stiffness: 180 }));
-    fireScale.value = withDelay(60, withSpring(1, { damping: 12, stiffness: 200 }));
-    numberScale.value = withDelay(80, withSpring(1, { damping: 12, stiffness: 200 }));
+    contentOpacity.value = withDelay(CONTENT_DELAY_MS, withTiming(1, { duration: CONTENT_FADE_IN_MS }));
+    contentScale.value = withDelay(CONTENT_DELAY_MS, withSpring(1, { damping: 14, stiffness: 180 }));
+    fireScale.value = withDelay(160, withSpring(1, { damping: 12, stiffness: 200 }));
+    numberScale.value = withDelay(200, withSpring(1, { damping: 12, stiffness: 200 }));
 
-    oldOpacity.value = withDelay(120, withTiming(0, { duration: 320 }));
-    oldTranslateY.value = withDelay(120, withTiming(-14, { duration: 320 }));
-    newOpacity.value = withDelay(120, withTiming(1, { duration: 360 }));
-    newTranslateY.value = withDelay(120, withTiming(0, { duration: 360 }));
+    oldOpacity.value = withDelay(NUMBER_SWAP_DELAY_MS, withTiming(0, { duration: OLD_NUMBER_SWAP_MS }));
+    oldTranslateY.value = withDelay(
+      NUMBER_SWAP_DELAY_MS,
+      withTiming(-14, { duration: OLD_NUMBER_SWAP_MS })
+    );
+    newOpacity.value = withDelay(NUMBER_SWAP_DELAY_MS, withTiming(1, { duration: NEW_NUMBER_SWAP_MS }));
+    newTranslateY.value = withDelay(
+      NUMBER_SWAP_DELAY_MS,
+      withTiming(0, { duration: NEW_NUMBER_SWAP_MS })
+    );
 
     if (finishTimer.current) {
       clearTimeout(finishTimer.current);
@@ -102,7 +117,7 @@ export function CelebrationOverlay({
       }
       isAnimating.current = false;
       onFinish?.();
-    }, 1100);
+    }, FINISH_MS);
   }, [
     contentOpacity,
     contentScale,
