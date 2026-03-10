@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,12 +16,22 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
 
 const PRESET_DURATIONS = [7, 30, 100];
+const WEEKDAY_OPTIONS = [
+  { key: 1, label: 'Mon' },
+  { key: 2, label: 'Tue' },
+  { key: 3, label: 'Wed' },
+  { key: 4, label: 'Thu' },
+  { key: 5, label: 'Fri' },
+  { key: 6, label: 'Sat' },
+  { key: 0, label: 'Sun' },
+];
 
 export function OnboardingScreen() {
   const { createGoal } = useGoalStore();
   const [title, setTitle] = useState('');
   const [selectedDays, setSelectedDays] = useState<number | null>(PRESET_DURATIONS[0]);
   const [customDays, setCustomDays] = useState('');
+  const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
   const totalDays = useMemo(() => {
     const custom = Number(customDays);
@@ -30,7 +41,7 @@ export function OnboardingScreen() {
     return selectedDays ?? 0;
   }, [customDays, selectedDays]);
 
-  const canSubmit = title.trim().length > 0 && totalDays > 0;
+  const canSubmit = title.trim().length > 0 && totalDays > 0 && trackedWeekdays.length > 0;
 
   const handleSelectPreset = (value: number) => {
     setSelectedDays(value);
@@ -54,6 +65,16 @@ export function OnboardingScreen() {
     await createGoal({
       title: title.trim(),
       totalDays,
+      trackedWeekdays,
+    });
+  };
+
+  const toggleTrackedWeekday = (weekday: number) => {
+    setTrackedWeekdays((current) => {
+      if (current.includes(weekday)) {
+        return current.filter((value) => value !== weekday);
+      }
+      return [...current, weekday].sort((a, b) => a - b);
     });
   };
 
@@ -68,25 +89,53 @@ export function OnboardingScreen() {
             <Text style={styles.title}>Set your one goal</Text>
             <Text style={styles.subtitle}>Pick a focus and commit to a number of days.</Text>
 
-        <Text style={styles.label}>Goal title</Text>
-        <TextInput
-          placeholder="No sugar"
-          value={title}
-          onChangeText={setTitle}
-          style={styles.input}
-          autoCorrect={false}
-          autoCapitalize="sentences"
-          returnKeyType="done"
-          accessibilityLabel="Goal title"
-        />
+            <Text style={styles.label}>Goal title</Text>
+            <TextInput
+              placeholder="No sugar"
+              value={title}
+              onChangeText={setTitle}
+              style={styles.input}
+              autoCorrect={false}
+              autoCapitalize="sentences"
+              returnKeyType="done"
+              accessibilityLabel="Goal title"
+            />
 
-        <DurationPicker
-          presets={PRESET_DURATIONS}
-          selected={selectedDays}
-          customValue={customDays}
-          onSelect={handleSelectPreset}
-          onCustomChange={handleCustomChange}
-        />
+            <DurationPicker
+              presets={PRESET_DURATIONS}
+              selected={selectedDays}
+              customValue={customDays}
+              onSelect={handleSelectPreset}
+              onCustomChange={handleCustomChange}
+            />
+
+            <Text style={styles.label}>Track on</Text>
+            <View style={styles.weekdayRow}>
+              {WEEKDAY_OPTIONS.map((weekday) => {
+                const selected = trackedWeekdays.includes(weekday.key);
+                return (
+                  <Pressable
+                    key={weekday.key}
+                    onPress={() => toggleTrackedWeekday(weekday.key)}
+                    style={[styles.weekdayChip, selected ? styles.weekdayChipSelected : null]}
+                    accessibilityRole="button"
+                    accessibilityLabel={weekday.label}
+                  >
+                    <Text
+                      style={[
+                        styles.weekdayChipLabel,
+                        selected ? styles.weekdayChipLabelSelected : null,
+                      ]}
+                    >
+                      {weekday.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {trackedWeekdays.length === 0 ? (
+              <Text style={styles.errorText}>Select at least one tracked day.</Text>
+            ) : null}
 
             <View style={styles.footer}>
               <PrimaryButton label="Create goal" onPress={handleCreateGoal} disabled={!canSubmit} />
@@ -146,8 +195,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
+    marginBottom: 20,
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  weekdayChip: {
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  weekdayChipSelected: {
+    backgroundColor: '#111',
+    borderColor: '#111',
+  },
+  weekdayChipLabel: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  weekdayChipLabelSelected: {
+    color: '#FFFFFF',
+  },
+  errorText: {
+    marginTop: 2,
+    marginBottom: 8,
+    color: '#B42318',
   },
   footer: {
-    marginTop: 28,
+    marginTop: 24,
   },
 });

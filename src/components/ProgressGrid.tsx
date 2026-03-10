@@ -65,6 +65,7 @@ function GridCell({
   const isComplete = state === 'completed';
   const isFrozen = state === 'skipped';
   const isPast = state === 'past';
+  const isOff = state === 'off';
   const frozenScaleBoost = isFrozen ? 1.08 : 1;
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -92,12 +93,13 @@ function GridCell({
         styles.cell,
         isComplete ? styles.cellComplete : null,
         isPast ? styles.cellPast : null,
-        !isComplete && !isPast ? styles.cellInactive : null,
+        isOff ? styles.cellOff : null,
+        !isComplete && !isPast && !isOff ? styles.cellInactive : null,
         animatedStyle,
       ]}
     >
-      <View style={[styles.fill, isComplete || isPast ? null : styles.fillInactive]}>
-        {isComplete || isPast ? (
+      <View style={[styles.fill, isComplete || isPast || isOff ? null : styles.fillInactive]}>
+        {isComplete || isPast || isOff ? (
           <>
             {isComplete ? (
               <>
@@ -119,10 +121,17 @@ function GridCell({
                 <Ionicons name="checkmark-sharp" size={24} color="#FFFFFF" style={styles.checkIcon} />
               </>
             ) : (
-              <>
-                <View style={styles.pastFill} />
-                <Ionicons name="close" size={20} color="#7D7D7D" style={styles.pastIcon} />
-              </>
+              isPast ? (
+                <>
+                  <View style={styles.pastFill} />
+                  <Ionicons name="close" size={20} color="#7D7D7D" style={styles.pastIcon} />
+                </>
+              ) : (
+                <>
+                  <View style={styles.offFill} />
+                  <View style={styles.offDot} />
+                </>
+              )
             )}
           </>
         ) : null}
@@ -194,6 +203,8 @@ export function ProgressGrid({
           ? 'skipped'
           : timelineState === 'completed'
             ? 'completed'
+            : timelineState === 'off'
+              ? 'off'
             : dayIndex < elapsedDays
               ? 'past'
               : 'future';
@@ -318,6 +329,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  cellOff: {
+    shadowColor: '#BEBEBE',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
   fill: {
     width: '100%',
     height: '100%',
@@ -336,6 +354,13 @@ const styles = StyleSheet.create({
     borderColor: '#D0D0D0',
     borderRadius: CELL_RADIUS,
   },
+  offFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F6F6F6',
+    borderWidth: 1,
+    borderColor: '#E4E4E4',
+    borderRadius: CELL_RADIUS,
+  },
   checkIcon: {
     position: 'absolute',
     alignSelf: 'center',
@@ -347,5 +372,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     top: '50%',
     marginTop: -10,
+  },
+  offDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C6C6C6',
+    alignSelf: 'center',
+    marginTop: CELL_SIZE / 2 - 4,
   },
 });

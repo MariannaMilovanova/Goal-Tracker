@@ -44,6 +44,7 @@ describe('GoalStore', () => {
     expect(storeRef?.goal?.title).toBe('Read');
     expect(storeRef?.goal?.completedDays).toBe(0);
     expect(storeRef?.goal?.timeline).toEqual([]);
+    expect(storeRef?.goal?.trackedWeekdays).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
   });
 

@@ -2,7 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 import { clearWidgetSnapshot, writeWidgetSnapshot } from '../native/widgetBridge';
-import { addDaysToDateString, canMarkDone, getDateDiffInDays, getLocalDateString } from '../utils/date';
+import {
+  addDaysToDateString,
+  canMarkDone,
+  getDateDiffInDays,
+  getLocalDateString,
+  isTrackedOnDate,
+  normalizeTrackedWeekdays,
+} from '../utils/date';
 import { normalizeGoal } from '../utils/goalValidation';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
 import { Goal, GoalDayState, GoalInput, GoalUpdate } from './goalTypes';
@@ -26,19 +33,8 @@ function buildTimelineEntries(state: GoalDayState, count: number): GoalDayState[
   return Array.from({ length: Math.max(0, Math.floor(count)) }, () => state);
 }
 
-function buildTimeline(completedCount: number, skippedCount: number): GoalDayState[] {
-  return [
-    ...buildTimelineEntries('completed', completedCount),
-    ...buildTimelineEntries('skipped', skippedCount),
-  ];
-}
-
 function countCompletedDays(timeline: GoalDayState[]): number {
   return timeline.reduce((count, state) => (state === 'completed' ? count + 1 : count), 0);
-}
-
-function countSkippedDays(timeline: GoalDayState[]): number {
-  return timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0);
 }
 
 function getGoalStartDate(goal: Goal): string {
@@ -49,7 +45,11 @@ function getGoalStartDate(goal: Goal): string {
   return getLocalDateString(createdAt);
 }
 
-function reconcileSkippedDays(goal: Goal, today: string): Goal {
+function getTrackedStateForDate(date: string, trackedWeekdays: number[]): GoalDayState {
+  return isTrackedOnDate(date, trackedWeekdays) ? 'skipped' : 'off';
+}
+
+function reconcilePastTimeline(goal: Goal, today: string): Goal {
   const startDate = getGoalStartDate(goal);
   const yesterday = addDaysToDateString(today, -1);
   const nextTimelineDate = addDaysToDateString(startDate, goal.timeline.length);
@@ -58,9 +58,14 @@ function reconcileSkippedDays(goal: Goal, today: string): Goal {
     return goal;
   }
 
+  const entries = Array.from({ length: missingPastDays }, (_, index) => {
+    const date = addDaysToDateString(nextTimelineDate, index);
+    return getTrackedStateForDate(date, goal.trackedWeekdays);
+  });
+
   return {
     ...goal,
-    timeline: [...goal.timeline, ...buildTimelineEntries('skipped', missingPastDays)],
+    timeline: [...goal.timeline, ...entries],
   };
 }
 
@@ -74,6 +79,16 @@ function ensureCompletedDays(goal: Goal): Goal {
     ...goal,
     completedDays: clampedCompleted,
   };
+}
+
+function fillTimelineUntilIndex(goal: Goal, timeline: GoalDayState[], targetIndex: number): GoalDayState[] {
+  const startDate = getGoalStartDate(goal);
+  const nextTimeline = [...timeline];
+  while (nextTimeline.length < targetIndex) {
+    const date = addDaysToDateString(startDate, nextTimeline.length);
+    nextTimeline.push(getTrackedStateForDate(date, goal.trackedWeekdays));
+  }
+  return nextTimeline;
 }
 
 export function GoalProvider({
@@ -122,11 +137,13 @@ export function GoalProvider({
         setGoal(null);
         return;
       }
+
       const today = getLocalDateString();
-      const reconciled = ensureCompletedDays(reconcileSkippedDays(normalized, today));
+      const reconciled = ensureCompletedDays(reconcilePastTimeline(normalized, today));
       const didChange =
         reconciled.timeline.length !== normalized.timeline.length ||
         reconciled.completedDays !== normalized.completedDays;
+
       setGoal(reconciled);
       if (didChange) {
         await persistGoal(reconciled);
@@ -144,11 +161,13 @@ export function GoalProvider({
   const createGoal = useCallback(
     async (input: GoalInput) => {
       const totalDays = Math.max(1, Math.floor(input.totalDays));
+      const trackedWeekdays = normalizeTrackedWeekdays(input.trackedWeekdays);
       const nextGoal: Goal = {
         title: input.title.trim(),
         totalDays,
         completedDays: 0,
         timeline: [],
+        trackedWeekdays,
         lastCompletedDate: null,
         createdAt: new Date().toISOString(),
         accentColor: input.accentColor,
@@ -167,7 +186,11 @@ export function GoalProvider({
     }
 
     const today = getLocalDateString();
-    const reconciledGoal = ensureCompletedDays(reconcileSkippedDays(goal, today));
+    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
+
+    if (!isTrackedOnDate(today, reconciledGoal.trackedWeekdays)) {
+      return false;
+    }
 
     if (!canMarkDone(today, reconciledGoal.lastCompletedDate)) {
       return false;
@@ -183,10 +206,8 @@ export function GoalProvider({
       return false;
     }
 
-    const nextTimeline = [...reconciledGoal.timeline];
-    if (nextTimeline.length < todayIndex) {
-      nextTimeline.push(...buildTimelineEntries('skipped', todayIndex - nextTimeline.length));
-    }
+    let nextTimeline = fillTimelineUntilIndex(reconciledGoal, reconciledGoal.timeline, todayIndex);
+    nextTimeline = [...nextTimeline];
     if (nextTimeline.length === todayIndex) {
       nextTimeline.push('completed');
     } else {
@@ -199,6 +220,7 @@ export function GoalProvider({
       completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
       lastCompletedDate: today,
     };
+
     setGoal(nextGoal);
     await persistGoal(nextGoal);
     await syncWidget(nextGoal);
@@ -211,7 +233,7 @@ export function GoalProvider({
     }
 
     const today = getLocalDateString();
-    const reconciledGoal = ensureCompletedDays(reconcileSkippedDays(goal, today));
+    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
 
     if (reconciledGoal.lastCompletedDate !== today) {
       return false;
@@ -224,8 +246,13 @@ export function GoalProvider({
     const startDate = getGoalStartDate(reconciledGoal);
     const todayIndex = getDateDiffInDays(startDate, today);
     const nextTimeline = [...reconciledGoal.timeline];
-    if (todayIndex === nextTimeline.length - 1 && nextTimeline[todayIndex] === 'completed') {
-      nextTimeline.pop();
+
+    if (todayIndex >= 0 && todayIndex < nextTimeline.length && nextTimeline[todayIndex] === 'completed') {
+      if (todayIndex === nextTimeline.length - 1) {
+        nextTimeline.pop();
+      } else {
+        nextTimeline[todayIndex] = getTrackedStateForDate(today, reconciledGoal.trackedWeekdays);
+      }
     } else {
       const lastCompletedIndex = nextTimeline.lastIndexOf('completed');
       if (lastCompletedIndex < 0) {
@@ -240,6 +267,7 @@ export function GoalProvider({
       completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
       lastCompletedDate: null,
     };
+
     setGoal(nextGoal);
     await persistGoal(nextGoal);
     await syncWidget(nextGoal);
@@ -262,10 +290,11 @@ export function GoalProvider({
       const nextTitle = nextTitleRaw.length > 0 ? nextTitleRaw : goal.title;
       const nextTotalDaysRaw = updates.totalDays ?? goal.totalDays;
       const nextTotalDays = Math.max(1, Math.floor(nextTotalDaysRaw));
+      const trackedWeekdays = normalizeTrackedWeekdays(updates.trackedWeekdays ?? goal.trackedWeekdays);
+
       const rawCompletedDays = updates.completedDays ?? goal.completedDays;
       const normalizedCompletedDays = Math.max(0, Math.floor(rawCompletedDays));
       const nextCompletedDays = Math.min(normalizedCompletedDays, nextTotalDays);
-      const existingSkippedDays = countSkippedDays(goal.timeline);
 
       let nextLastCompletedDate = goal.lastCompletedDate;
       if (updates.lastCompletedDate !== undefined) {
@@ -277,39 +306,52 @@ export function GoalProvider({
         nextLastCompletedDate = null;
       }
 
-      let nextTimeline = goal.timeline;
+      let nextTimeline = [...goal.timeline];
       let nextCreatedAt = goal.createdAt;
+
       if (updates.completedDays !== undefined) {
         if (nextCompletedDays === 0) {
           nextTimeline = [];
           nextCreatedAt = new Date().toISOString();
         } else {
-          nextTimeline = buildTimeline(nextCompletedDays, existingSkippedDays);
+          nextTimeline = buildTimelineEntries('completed', nextCompletedDays);
         }
-      } else if (nextCompletedDays !== goal.completedDays) {
-        nextTimeline = buildTimeline(nextCompletedDays, existingSkippedDays);
       }
 
-      const nextGoal = ensureCompletedDays({
+      if (updates.trackedWeekdays !== undefined) {
+        const startDate = getLocalDateString(new Date(nextCreatedAt));
+        nextTimeline = nextTimeline.map((state, index) => {
+          if (state === 'completed') {
+            return 'completed';
+          }
+          const date = addDaysToDateString(startDate, index);
+          return getTrackedStateForDate(date, trackedWeekdays);
+        });
+      }
+
+      let nextGoal = ensureCompletedDays({
         ...goal,
         title: nextTitle,
         totalDays: nextTotalDays,
         accentColor: updates.accentColor ?? goal.accentColor,
         completedDays: nextCompletedDays,
         timeline: nextTimeline,
+        trackedWeekdays,
         lastCompletedDate: nextLastCompletedDate,
         createdAt: nextCreatedAt,
       });
 
-      const persistedGoal: Goal = {
-        ...goal,
-        ...nextGoal,
-      };
+      if (nextGoal.completedDays === 0 && nextGoal.lastCompletedDate !== null) {
+        nextGoal = {
+          ...nextGoal,
+          lastCompletedDate: null,
+        };
+      }
 
-      setGoal(persistedGoal);
-      await persistGoal(persistedGoal);
-      await syncWidget(persistedGoal);
-      return persistedGoal;
+      setGoal(nextGoal);
+      await persistGoal(nextGoal);
+      await syncWidget(nextGoal);
+      return nextGoal;
     },
     [goal, persistGoal, syncWidget],
   );

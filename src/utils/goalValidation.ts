@@ -1,4 +1,5 @@
 import { Goal, GoalDayState } from '../store/goalTypes';
+import { normalizeTrackedWeekdays } from './date';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,8 +21,10 @@ export function normalizeGoal(raw: unknown): Goal | null {
   const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : '';
   const accentColor = typeof candidate.accentColor === 'string' ? candidate.accentColor : undefined;
   const rawTimeline = Array.isArray(candidate.timeline) ? candidate.timeline : [];
+  const trackedWeekdays = normalizeTrackedWeekdays(candidate.trackedWeekdays);
   const timeline = rawTimeline.filter(
-    (entry): entry is GoalDayState => entry === 'completed' || entry === 'skipped',
+    (entry): entry is GoalDayState =>
+      entry === 'completed' || entry === 'skipped' || entry === 'off',
   );
 
   const lastCompletedDate =
@@ -52,6 +55,9 @@ export function normalizeGoal(raw: unknown): Goal | null {
         normalizedCompleted += 1;
         return 'completed';
       }
+      if (entry === 'off') {
+        return 'off';
+      }
       return 'skipped';
     });
   }
@@ -61,6 +67,7 @@ export function normalizeGoal(raw: unknown): Goal | null {
     totalDays,
     completedDays: normalizedCompleted,
     timeline: normalizedTimeline,
+    trackedWeekdays,
     lastCompletedDate,
     createdAt,
     accentColor,

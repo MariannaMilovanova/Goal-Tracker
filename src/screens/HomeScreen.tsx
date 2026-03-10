@@ -9,7 +9,14 @@ import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProgressGrid } from '../components/ProgressGrid';
 import { useGoalStore } from '../store/goalStore';
-import { canMarkDone, canUndoToday, getDateDiffInDays, getLocalDateString } from '../utils/date';
+import {
+  canMarkDone,
+  canUndoToday,
+  getDateDiffInDays,
+  getLocalDateString,
+  getNextTrackedDate,
+  isTrackedOnDate,
+} from '../utils/date';
 
 export function HomeScreen() {
   const { goal, markDone, undoToday, updateGoal, resetGoal } = useGoalStore();
@@ -28,11 +35,29 @@ export function HomeScreen() {
     () => (goal ? goal.totalDays + skippedDays : 0),
     [goal, skippedDays],
   );
+  const today = useMemo(() => getLocalDateString(), []);
+  const isTrackedToday = useMemo(
+    () => (goal ? isTrackedOnDate(today, goal.trackedWeekdays) : false),
+    [goal, today],
+  );
+  const nextTrackedDate = useMemo(
+    () => (goal ? getNextTrackedDate(today, goal.trackedWeekdays) : null),
+    [goal, today],
+  );
+  const nextTrackedLabel = useMemo(() => {
+    if (!nextTrackedDate) {
+      return null;
+    }
+    const parsed = new Date(`${nextTrackedDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(parsed);
+  }, [nextTrackedDate]);
   const elapsedDays = useMemo(() => {
     if (!goal) {
       return 0;
     }
-    const today = getLocalDateString();
     const start = getLocalDateString(new Date(goal.createdAt));
     const dayDiff = getDateDiffInDays(start, today);
     const inclusiveDays = dayDiff + 1;
@@ -43,12 +68,14 @@ export function HomeScreen() {
     if (!goal) {
       return false;
     }
+    if (!isTrackedToday) {
+      return false;
+    }
     if (goal.completedDays >= goal.totalDays) {
       return false;
     }
-    const today = getLocalDateString();
     return canMarkDone(today, goal.lastCompletedDate);
-  }, [goal]);
+  }, [goal, isTrackedToday, today]);
 
   const canUndo = useMemo(() => {
     if (!goal) {
@@ -57,9 +84,8 @@ export function HomeScreen() {
     if (goal.completedDays <= 0) {
       return false;
     }
-    const today = getLocalDateString();
     return canUndoToday(today, goal.lastCompletedDate);
-  }, [goal]);
+  }, [goal, today]);
 
   useEffect(() => {
     if (!goal) {
@@ -216,7 +242,13 @@ export function HomeScreen() {
                   <Text style={styles.undoText}>Undo today</Text>
                 </Pressable>
               ) : null}
-              {!canCompleteToday ? <Text style={styles.hint}>Come back tomorrow.</Text> : null}
+              {!canCompleteToday ? (
+                <Text style={styles.hint}>
+                  {isTrackedToday
+                    ? 'Come back tomorrow.'
+                    : `Rest day.${nextTrackedLabel ? ` Next check-in ${nextTrackedLabel}.` : ''}`}
+                </Text>
+              ) : null}
             </>
           )}
         </View>

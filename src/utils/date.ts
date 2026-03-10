@@ -1,4 +1,5 @@
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 function parseDateString(value: string): { year: number; month: number; day: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -15,6 +16,14 @@ function parseDateString(value: string): { year: number; month: number; day: num
     return null;
   }
   return { year, month, day };
+}
+
+function toLocalDate(value: string): Date | null {
+  const parsed = parseDateString(value);
+  if (!parsed) {
+    return null;
+  }
+  return new Date(parsed.year, parsed.month - 1, parsed.day);
 }
 
 function toUTCDate(value: string): Date | null {
@@ -45,6 +54,50 @@ export function addDaysToDateString(value: string, days: number): string {
     return value;
   }
   return formatUTCDate(new Date(parsed.getTime() + Math.floor(days) * MS_PER_DAY));
+}
+
+export function normalizeTrackedWeekdays(raw: number[] | undefined | null): number[] {
+  if (!Array.isArray(raw)) {
+    return [...ALL_WEEKDAYS];
+  }
+
+  const unique = new Set<number>();
+  for (const day of raw) {
+    if (Number.isInteger(day) && day >= 0 && day <= 6) {
+      unique.add(day);
+    }
+  }
+  if (unique.size === 0) {
+    return [...ALL_WEEKDAYS];
+  }
+  return [...unique].sort((a, b) => a - b);
+}
+
+export function getWeekdayFromDateString(value: string): number | null {
+  const date = toLocalDate(value);
+  if (!date) {
+    return null;
+  }
+  return date.getDay();
+}
+
+export function isTrackedOnDate(dateString: string, trackedWeekdays: number[]): boolean {
+  const weekday = getWeekdayFromDateString(dateString);
+  if (weekday === null) {
+    return false;
+  }
+  return normalizeTrackedWeekdays(trackedWeekdays).includes(weekday);
+}
+
+export function getNextTrackedDate(today: string, trackedWeekdays: number[]): string | null {
+  const normalized = normalizeTrackedWeekdays(trackedWeekdays);
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const candidate = addDaysToDateString(today, offset);
+    if (isTrackedOnDate(candidate, normalized)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 export function getDateDiffInDays(from: string, to: string): number {

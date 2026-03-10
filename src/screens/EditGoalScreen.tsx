@@ -17,6 +17,16 @@ import { useRouter } from 'expo-router';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
 
+const WEEKDAY_OPTIONS = [
+  { key: 1, label: 'Mon' },
+  { key: 2, label: 'Tue' },
+  { key: 3, label: 'Wed' },
+  { key: 4, label: 'Thu' },
+  { key: 5, label: 'Fri' },
+  { key: 6, label: 'Sat' },
+  { key: 0, label: 'Sun' },
+];
+
 export function EditGoalScreen() {
   const router = useRouter();
   const { goal, resetGoal, updateGoal } = useGoalStore();
@@ -24,6 +34,9 @@ export function EditGoalScreen() {
   const [totalDays, setTotalDays] = useState(goal ? String(goal.totalDays) : '');
   const [advancedEnabled, setAdvancedEnabled] = useState(false);
   const [completedDays, setCompletedDays] = useState(goal ? String(goal.completedDays) : '0');
+  const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>(
+    goal?.trackedWeekdays ?? [0, 1, 2, 3, 4, 5, 6],
+  );
 
   const totalDaysValue = useMemo(() => {
     const parsed = Number(totalDays);
@@ -53,7 +66,11 @@ export function EditGoalScreen() {
   }, [completedDaysValue]);
 
   const completedDaysTooHigh = advancedEnabled && normalizedCompletedDays > maxCompletedDays;
-  const canSubmit = title.trim().length > 0 && totalDaysValue > 0 && !completedDaysTooHigh;
+  const canSubmit =
+    title.trim().length > 0 &&
+    totalDaysValue > 0 &&
+    trackedWeekdays.length > 0 &&
+    !completedDaysTooHigh;
   if (!goal) {
     return null;
   }
@@ -72,6 +89,15 @@ export function EditGoalScreen() {
     setCompletedDays(sanitized);
   };
 
+  const toggleTrackedWeekday = (weekday: number) => {
+    setTrackedWeekdays((current) => {
+      if (current.includes(weekday)) {
+        return current.filter((value) => value !== weekday);
+      }
+      return [...current, weekday].sort((a, b) => a - b);
+    });
+  };
+
   const handleSave = async () => {
     if (!canSubmit) {
       return;
@@ -80,6 +106,7 @@ export function EditGoalScreen() {
     const updates = {
       title: title.trim(),
       totalDays: totalDaysValue,
+      trackedWeekdays,
       ...(advancedEnabled ? { completedDays: normalizedCompletedDays } : {}),
     };
 
@@ -139,6 +166,34 @@ export function EditGoalScreen() {
               returnKeyType="done"
               accessibilityLabel="Total days"
             />
+
+            <Text style={styles.label}>Track on</Text>
+            <View style={styles.weekdayRow}>
+              {WEEKDAY_OPTIONS.map((weekday) => {
+                const selected = trackedWeekdays.includes(weekday.key);
+                return (
+                  <Pressable
+                    key={weekday.key}
+                    onPress={() => toggleTrackedWeekday(weekday.key)}
+                    style={[styles.weekdayChip, selected ? styles.weekdayChipSelected : null]}
+                    accessibilityRole="button"
+                    accessibilityLabel={weekday.label}
+                  >
+                    <Text
+                      style={[
+                        styles.weekdayChipLabel,
+                        selected ? styles.weekdayChipLabelSelected : null,
+                      ]}
+                    >
+                      {weekday.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {trackedWeekdays.length === 0 ? (
+              <Text style={styles.errorText}>Select at least one tracked day.</Text>
+            ) : null}
 
             <View style={styles.advancedRow}>
               <View>
@@ -238,6 +293,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
   },
+  weekdayRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  weekdayChip: {
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  weekdayChipSelected: {
+    backgroundColor: '#111',
+    borderColor: '#111',
+  },
+  weekdayChipLabel: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  weekdayChipLabelSelected: {
+    color: '#FFFFFF',
+  },
   advancedRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -268,6 +349,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: -8,
+    marginBottom: 8,
     color: '#B42318',
   },
 });
