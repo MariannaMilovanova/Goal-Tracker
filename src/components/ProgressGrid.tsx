@@ -351,6 +351,8 @@ const styles = StyleSheet.create({
   cellPressable: {
     width: '100%',
     height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   frozenCell: {
     overflow: 'hidden',
@@ -358,10 +360,13 @@ const styles = StyleSheet.create({
   frozenPressable: {
     width: '100%',
     height: '100%',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   frozenImage: {
-    width: '100%',
-    height: '100%',
+    width: '108%',
+    height: '108%',
     borderRadius: CELL_RADIUS,
   },
   cellInactive: {
