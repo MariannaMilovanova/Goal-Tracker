@@ -67,6 +67,30 @@ export function HomeScreen() {
     const inclusiveDays = dayDiff + 1;
     return Math.max(0, Math.min(inclusiveDays, visibleTotalDays));
   }, [goal, visibleTotalDays]);
+  const streakDays = useMemo(() => {
+    if (!goal || goal.timeline.length === 0) {
+      return 0;
+    }
+
+    let streak = 0;
+
+    for (let index = goal.timeline.length - 1; index >= 0; index -= 1) {
+      const state = goal.timeline[index];
+
+      if (state === 'off') {
+        continue;
+      }
+
+      if (state === 'completed') {
+        streak += 1;
+        continue;
+      }
+
+      break;
+    }
+
+    return streak;
+  }, [goal]);
 
   const canCompleteToday = useMemo(() => {
     if (!goal) {
@@ -224,11 +248,19 @@ export function HomeScreen() {
             </Text>
           </View>
 
-          <BigNumber value={goal.completedDays} label="Completed" />
+          <BigNumber
+            value={goal.completedDays}
+            label={goal.completedDays === 1 ? 'day completed' : 'days completed'}
+          />
         </View>
 
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
           <View style={styles.gridSection}>
+            <View style={styles.streakPill}>
+              <Text style={styles.streakText}>
+                {`🔥 ${streakDays} day${streakDays === 1 ? '' : 's'} streak`}
+              </Text>
+            </View>
             <ProgressGrid
               total={visibleTotalDays}
               timeline={goal.timeline}
@@ -343,7 +375,22 @@ const styles = StyleSheet.create({
     color: '#6B6B6B',
   },
   gridSection: {
-    marginTop: 16,
+    marginTop: 8,
+  },
+  streakPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#FFF5EB',
+    borderWidth: 1,
+    borderColor: '#F4D2B2',
+    marginBottom: 12,
+  },
+  streakText: {
+    color: '#6F3E13',
+    fontSize: 13,
+    fontWeight: '700',
   },
   footer: {
     flexShrink: 0,

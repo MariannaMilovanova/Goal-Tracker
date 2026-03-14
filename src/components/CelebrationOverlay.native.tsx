@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
@@ -30,7 +30,16 @@ const CONTENT_FADE_IN_MS = 440;
 const NUMBER_SWAP_DELAY_MS = 320;
 const OLD_NUMBER_SWAP_MS = 920;
 const NEW_NUMBER_SWAP_MS = 1080;
+const MESSAGE_DELAY_MS = 260;
+const MESSAGE_FADE_IN_MS = 320;
 const FINISH_MS = OVERLAY_FADE_IN_MS + OVERLAY_HOLD_MS + OVERLAY_FADE_OUT_MS;
+const AFFIRMATIONS = [
+  'Nice work.',
+  'Another step forward.',
+  'You stayed focused today.',
+  'That is real progress.',
+  'You showed up again.',
+] as const;
 
 export function CelebrationOverlay({
   visible,
@@ -41,6 +50,8 @@ export function CelebrationOverlay({
   const isAnimating = useRef(false);
   const isMounted = useRef(true);
   const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastMessageIndex = useRef<number | null>(null);
+  const [message, setMessage] = useState(AFFIRMATIONS[0]);
   const overlayOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.92);
@@ -50,6 +61,8 @@ export function CelebrationOverlay({
   const newOpacity = useSharedValue(0);
   const oldTranslateY = useSharedValue(0);
   const newTranslateY = useSharedValue(14);
+  const messageOpacity = useSharedValue(0);
+  const messageTranslateY = useSharedValue(8);
 
   useEffect(() => {
     return () => {
@@ -87,6 +100,15 @@ export function CelebrationOverlay({
     newOpacity.value = 0;
     oldTranslateY.value = 0;
     newTranslateY.value = 14;
+    messageOpacity.value = 0;
+    messageTranslateY.value = 8;
+
+    let nextIndex = Math.floor(Math.random() * AFFIRMATIONS.length);
+    if (AFFIRMATIONS.length > 1 && nextIndex === lastMessageIndex.current) {
+      nextIndex = (nextIndex + 1) % AFFIRMATIONS.length;
+    }
+    lastMessageIndex.current = nextIndex;
+    setMessage(AFFIRMATIONS[nextIndex]);
 
     overlayOpacity.value = withSequence(
       withTiming(1, { duration: OVERLAY_FADE_IN_MS }),
@@ -106,6 +128,14 @@ export function CelebrationOverlay({
     newTranslateY.value = withDelay(
       NUMBER_SWAP_DELAY_MS,
       withTiming(0, { duration: NEW_NUMBER_SWAP_MS })
+    );
+    messageOpacity.value = withDelay(
+      MESSAGE_DELAY_MS,
+      withTiming(1, { duration: MESSAGE_FADE_IN_MS })
+    );
+    messageTranslateY.value = withDelay(
+      MESSAGE_DELAY_MS,
+      withTiming(0, { duration: MESSAGE_FADE_IN_MS })
     );
 
     if (finishTimer.current) {
@@ -129,6 +159,8 @@ export function CelebrationOverlay({
     onFinish,
     overlayOpacity,
     numberScale,
+    messageOpacity,
+    messageTranslateY,
     visible,
   ]);
 
@@ -157,6 +189,11 @@ export function CelebrationOverlay({
   const newNumberStyle = useAnimatedStyle(() => ({
     opacity: newOpacity.value,
     transform: [{ translateY: newTranslateY.value }],
+  }));
+
+  const messageStyle = useAnimatedStyle(() => ({
+    opacity: messageOpacity.value,
+    transform: [{ translateY: messageTranslateY.value }],
   }));
 
   if (!visible) {
@@ -188,7 +225,7 @@ export function CelebrationOverlay({
             </Animated.Text>
           </Animated.View>
         </View>
-        <Text style={styles.text}>Nice!</Text>
+        <Animated.Text style={[styles.text, messageStyle]}>{message}</Animated.Text>
       </Animated.View>
     </Animated.View>
   );
@@ -248,8 +285,10 @@ const styles = StyleSheet.create({
   },
   text: {
     marginTop: 6,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: '#111',
+    textAlign: 'center',
+    maxWidth: 220,
   },
 });

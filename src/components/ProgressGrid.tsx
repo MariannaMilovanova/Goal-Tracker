@@ -26,8 +26,8 @@ type ProgressGridProps = {
 
 const GRID_PADDING = 24;
 const GRID_COLUMNS = 7;
-const CELL_SIZE = 40;
-const CELL_GAP = 6;
+const CELL_SIZE = 36;
+const CELL_GAP = 8;
 const CELL_RADIUS = 12;
 const FROZEN_CELL_SOURCE = require('../../assets/frozen-cell.png');
 const GRID_WIDTH = GRID_COLUMNS * CELL_SIZE + (GRID_COLUMNS - 1) * CELL_GAP;
@@ -82,9 +82,10 @@ function GridCell({
   const isOff = state === 'off';
   const isToday = state === 'today';
   const frozenScaleBoost = isFrozen ? 1.08 : 1;
+  const completedScaleBoost = isComplete ? 1.06 : 1;
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value * frozenScaleBoost }],
+    transform: [{ scale: scale.value * frozenScaleBoost * completedScaleBoost }],
   }));
 
   const handlePress = () => {
@@ -150,7 +151,7 @@ function GridCell({
                       fill={`url(#${gradientId})`}
                     />
                   </Svg>
-                  <Ionicons name="checkmark-sharp" size={24} color="#FFFFFF" style={styles.checkIcon} />
+                  <Ionicons name="checkmark-sharp" size={20} color="#FFFFFF" style={styles.checkIcon} />
                 </>
               ) : (
                 <>
@@ -284,7 +285,9 @@ export function ProgressGrid({
       {monthSections.map((section) => (
         <View key={section.key} style={styles.monthSection}>
           <View style={styles.monthLabelRow}>
+            <View style={styles.monthLabelLine} />
             <Text style={styles.monthLabel}>{section.monthLabel}</Text>
+            <View style={styles.monthLabelLine} />
           </View>
           <View style={styles.grid}>
             {Array.from({ length: section.leadingOffset }, (_, index) => (
@@ -319,18 +322,25 @@ const styles = StyleSheet.create({
   },
   monthSection: {
     width: GRID_WIDTH,
-    marginBottom: 8,
+    marginBottom: 14,
   },
   monthLabelRow: {
     width: '100%',
-    alignItems: 'flex-end',
-    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  monthLabelLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E2E2',
   },
   monthLabel: {
-    fontSize: 11,
-    color: '#7B7B7B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    fontSize: 13,
+    color: '#666666',
+    textTransform: 'capitalize',
+    letterSpacing: 0.3,
     fontWeight: '600',
   },
   grid: {
@@ -394,10 +404,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   cellToday: {
-    shadowColor: '#2F80ED',
-    shadowOpacity: 0.22,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
   fill: {
@@ -413,9 +423,9 @@ const styles = StyleSheet.create({
   },
   pastFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#E9E9E9',
+    backgroundColor: 'rgba(233, 233, 233, 0.72)',
     borderWidth: 1,
-    borderColor: '#D0D0D0',
+    borderColor: 'rgba(208, 208, 208, 0.62)',
     borderRadius: CELL_RADIUS,
   },
   offFill: {
@@ -428,20 +438,23 @@ const styles = StyleSheet.create({
   todayFill: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#E6E6E6',
-    borderWidth: 1,
-    borderColor: '#2D6CDF',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
     borderRadius: CELL_RADIUS,
   },
   checkIcon: {
     position: 'absolute',
     alignSelf: 'center',
     top: '50%',
-    marginTop: -12,
+    marginTop: -10,
   },
   pastIcon: {
     position: 'absolute',
     alignSelf: 'center',
     top: '50%',
     marginTop: -10,
+    opacity: 0.5,
+    textShadowColor: 'rgba(125, 125, 125, 0.28)',
+    textShadowRadius: 4,
   },
 });

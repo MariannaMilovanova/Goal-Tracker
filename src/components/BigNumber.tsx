@@ -26,7 +26,6 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     fontSize: 14,
     color: '#6B6B6B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.2,
   },
 });
