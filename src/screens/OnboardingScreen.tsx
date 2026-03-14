@@ -86,7 +86,7 @@ export function OnboardingScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Text style={styles.title}>Set your one goal</Text>
+            <Text style={styles.title}>Set your goal</Text>
             <Text style={styles.subtitle}>Pick a focus and commit to a number of days.</Text>
 
             <Text style={styles.label}>Goal title</Text>

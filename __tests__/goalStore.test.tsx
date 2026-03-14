@@ -31,6 +31,10 @@ describe('GoalStore', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('creates and persists a goal', async () => {
     let storeRef: StoreRef = null;
     renderWithStore((store) => {
@@ -91,6 +95,74 @@ describe('GoalStore', () => {
 
     expect(storeRef?.goal?.completedDays).toBe(1);
     expect(storeRef?.goal?.timeline).toContain('completed');
+  });
+
+  it('allows marking a past day as completed', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+      JSON.stringify({
+        title: 'Read',
+        totalDays: 5,
+        completedDays: 1,
+        timeline: ['completed', 'skipped'],
+        trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+        lastCompletedDate: '2026-03-10',
+        createdAt: '2026-03-10T15:00:00.000Z',
+      }),
+    );
+
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    }, false);
+
+    await act(async () => {
+      await storeRef?.loadGoal();
+    });
+
+    await act(async () => {
+      const result = await storeRef?.markDay('2026-03-11');
+      expect(result).toBe(true);
+    });
+
+    expect(storeRef?.goal?.completedDays).toBe(2);
+    expect(storeRef?.goal?.timeline[1]).toBe('completed');
+    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-11');
+  });
+
+  it('allows undoing a past completed day', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+      JSON.stringify({
+        title: 'Read',
+        totalDays: 5,
+        completedDays: 2,
+        timeline: ['completed', 'completed'],
+        trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+        lastCompletedDate: '2026-03-11',
+        createdAt: '2026-03-10T15:00:00.000Z',
+      }),
+    );
+
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    }, false);
+
+    await act(async () => {
+      await storeRef?.loadGoal();
+    });
+
+    await act(async () => {
+      const result = await storeRef?.undoDay('2026-03-11');
+      expect(result).toBe(true);
+    });
+
+    expect(storeRef?.goal?.completedDays).toBe(1);
+    expect(storeRef?.goal?.timeline[1]).toBe('skipped');
+    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-10');
   });
 
   it('resets goal and clears storage', async () => {

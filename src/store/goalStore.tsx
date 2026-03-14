@@ -20,6 +20,8 @@ export type GoalStore = {
   loadGoal: () => Promise<void>;
   createGoal: (input: GoalInput) => Promise<Goal>;
   markDone: () => Promise<boolean>;
+  markDay: (date: string) => Promise<boolean>;
+  undoDay: (date: string) => Promise<boolean>;
   undoToday: () => Promise<boolean>;
   resetGoal: () => Promise<void>;
   updateGoal: (updates: GoalUpdate) => Promise<Goal | null>;
@@ -89,6 +91,14 @@ function fillTimelineUntilIndex(goal: Goal, timeline: GoalDayState[], targetInde
     nextTimeline.push(getTrackedStateForDate(date, goal.trackedWeekdays));
   }
   return nextTimeline;
+}
+
+function getLastCompletedDateFromTimeline(goal: Goal, timeline: GoalDayState[]): string | null {
+  const lastCompletedIndex = timeline.lastIndexOf('completed');
+  if (lastCompletedIndex < 0) {
+    return null;
+  }
+  return addDaysToDateString(getGoalStartDate(goal), lastCompletedIndex);
 }
 
 export function GoalProvider({
@@ -223,7 +233,7 @@ export function GoalProvider({
     return true;
   }, [goal, persistGoal, syncWidget]);
 
-  const undoToday = useCallback(async () => {
+  const markDay = useCallback(async (date: string) => {
     if (!goal) {
       return false;
     }
@@ -231,37 +241,37 @@ export function GoalProvider({
     const today = getLocalDateString();
     const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
 
-    if (reconciledGoal.lastCompletedDate !== today) {
+    if (date > today) {
       return false;
     }
 
-    if (reconciledGoal.completedDays <= 0) {
+    if (reconciledGoal.completedDays >= reconciledGoal.totalDays || reconciledGoal.totalDays <= 0) {
       return false;
     }
 
     const startDate = getGoalStartDate(reconciledGoal);
-    const todayIndex = getDateDiffInDays(startDate, today);
-    const nextTimeline = [...reconciledGoal.timeline];
+    const targetIndex = getDateDiffInDays(startDate, date);
+    if (targetIndex < 0) {
+      return false;
+    }
 
-    if (todayIndex >= 0 && todayIndex < nextTimeline.length && nextTimeline[todayIndex] === 'completed') {
-      if (todayIndex === nextTimeline.length - 1) {
-        nextTimeline.pop();
-      } else {
-        nextTimeline[todayIndex] = getTrackedStateForDate(today, reconciledGoal.trackedWeekdays);
-      }
+    const nextTimeline = fillTimelineUntilIndex(reconciledGoal, reconciledGoal.timeline, targetIndex);
+    if (targetIndex < nextTimeline.length && nextTimeline[targetIndex] === 'completed') {
+      return false;
+    }
+
+    const writableTimeline = [...nextTimeline];
+    if (writableTimeline.length === targetIndex) {
+      writableTimeline.push('completed');
     } else {
-      const lastCompletedIndex = nextTimeline.lastIndexOf('completed');
-      if (lastCompletedIndex < 0) {
-        return false;
-      }
-      nextTimeline.splice(lastCompletedIndex, 1);
+      writableTimeline[targetIndex] = 'completed';
     }
 
     const nextGoal: Goal = {
       ...reconciledGoal,
-      timeline: nextTimeline,
-      completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
-      lastCompletedDate: null,
+      timeline: writableTimeline,
+      completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(writableTimeline)),
+      lastCompletedDate: getLastCompletedDateFromTimeline(reconciledGoal, writableTimeline),
     };
 
     setGoal(nextGoal);
@@ -269,6 +279,52 @@ export function GoalProvider({
     await syncWidget(nextGoal);
     return true;
   }, [goal, persistGoal, syncWidget]);
+
+  const undoDay = useCallback(async (date: string) => {
+    if (!goal) {
+      return false;
+    }
+
+    const today = getLocalDateString();
+    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
+    const startDate = getGoalStartDate(reconciledGoal);
+    const targetIndex = getDateDiffInDays(startDate, date);
+
+    if (date > today || targetIndex < 0 || targetIndex >= reconciledGoal.timeline.length) {
+      return false;
+    }
+
+    if (reconciledGoal.timeline[targetIndex] !== 'completed' || reconciledGoal.completedDays <= 0) {
+      return false;
+    }
+
+    const nextTimeline = [...reconciledGoal.timeline];
+
+    if (date === today) {
+      if (targetIndex !== nextTimeline.length - 1) {
+        return false;
+      }
+      if (targetIndex >= 0) {
+        nextTimeline.pop();
+      }
+    } else {
+      nextTimeline[targetIndex] = getTrackedStateForDate(date, reconciledGoal.trackedWeekdays);
+    }
+
+    const nextGoal: Goal = {
+      ...reconciledGoal,
+      timeline: nextTimeline,
+      completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
+      lastCompletedDate: getLastCompletedDateFromTimeline(reconciledGoal, nextTimeline),
+    };
+
+    setGoal(nextGoal);
+    await persistGoal(nextGoal);
+    await syncWidget(nextGoal);
+    return true;
+  }, [goal, persistGoal, syncWidget]);
+
+  const undoToday = useCallback(async () => undoDay(getLocalDateString()), [undoDay]);
 
   const resetGoal = useCallback(async () => {
     setGoal(null);
@@ -365,11 +421,13 @@ export function GoalProvider({
       loadGoal,
       createGoal,
       markDone,
+      markDay,
+      undoDay,
       undoToday,
       resetGoal,
       updateGoal,
     }),
-    [goal, isLoading, loadGoal, createGoal, markDone, undoToday, resetGoal, updateGoal],
+    [goal, isLoading, loadGoal, createGoal, markDone, markDay, undoDay, undoToday, resetGoal, updateGoal],
   );
 
   return <GoalContext.Provider value={value}>{children}</GoalContext.Provider>;

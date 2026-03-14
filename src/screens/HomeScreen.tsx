@@ -11,7 +11,6 @@ import { ProgressGrid, ProgressGridCellPressPayload } from '../components/Progre
 import { useGoalStore } from '../store/goalStore';
 import {
   canMarkDone,
-  canUndoToday,
   getDateDiffInDays,
   getLocalDateString,
   getNextTrackedDate,
@@ -19,7 +18,7 @@ import {
 } from '../utils/date';
 
 export function HomeScreen() {
-  const { goal, markDone, undoToday, updateGoal, resetGoal } = useGoalStore();
+  const { goal, markDone, markDay, undoDay, updateGoal, resetGoal } = useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [celebrationCellIndex, setCelebrationCellIndex] = useState<number | null>(null);
@@ -116,16 +115,6 @@ export function HomeScreen() {
     return canMarkDone(today, goal.lastCompletedDate);
   }, [goal, today]);
 
-  const canUndo = useMemo(() => {
-    if (!goal) {
-      return false;
-    }
-    if (goal.completedDays <= 0) {
-      return false;
-    }
-    return canUndoToday(today, goal.lastCompletedDate);
-  }, [goal, today]);
-
   useEffect(() => {
     if (!goal) {
       setDisplayCompletedDays(0);
@@ -183,9 +172,16 @@ export function HomeScreen() {
     );
   };
 
-  const handleUndoToday = async () => {
-    const didUndo = await undoToday();
+  const handleUndoDay = async (date: string) => {
+    const didUndo = await undoDay(date);
     if (didUndo) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleMarkPastDay = async (date: string) => {
+    const didMark = await markDay(date);
+    if (didMark) {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
@@ -203,32 +199,61 @@ export function HomeScreen() {
 
   const handleCellPress = ({ date, state, isTracked }: ProgressGridCellPressPayload) => {
     const formattedDate = cellDateFormatter.format(new Date(`${date}T00:00:00`));
+    const canMarkPastDay = date < today && goal.completedDays < goal.totalDays;
 
     if (state === 'skipped') {
-      Alert.alert('Skipped day', `${formattedDate} was a tracked day, but it was skipped. The chain continues today.`);
-      return;
-    }
-
-    if (state === 'completed') {
-      if (date === today && canUndo) {
-        Alert.alert('Undo today?', `Undo today's completion for ${formattedDate}?`, [
+      if (canMarkPastDay) {
+        Alert.alert('Track past day?', `${formattedDate} was skipped. Mark it as completed now?`, [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Undo',
-            style: 'destructive',
+            text: 'Mark done',
             onPress: () => {
-              void handleUndoToday();
+              void handleMarkPastDay(date);
             },
           },
         ]);
         return;
       }
+      Alert.alert('Skipped day', `${formattedDate} was a tracked day, but it was skipped.`);
+      return;
+    }
 
-      Alert.alert('Completed day', `${formattedDate} was completed.`);
+    if (state === 'completed') {
+      const title = date === today ? 'Undo today?' : 'Undo completed day?';
+      const description =
+        date === today
+          ? `Undo today's completion for ${formattedDate}?`
+          : `Undo completion for ${formattedDate}?`;
+      Alert.alert(title, description, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo',
+          style: 'destructive',
+          onPress: () => {
+            void handleUndoDay(date);
+          },
+        },
+      ]);
       return;
     }
 
     if (!isTracked) {
+      if (date < today && goal.completedDays < goal.totalDays) {
+        Alert.alert(
+          'Track past day?',
+          `${formattedDate} was outside your schedule. Mark it as completed anyway?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Mark done',
+              onPress: () => {
+                void handleMarkPastDay(date);
+              },
+            },
+          ],
+        );
+        return;
+      }
       const title = state === 'today' ? 'Rest day today' : 'Not scheduled';
       const description =
         state === 'today'
@@ -245,6 +270,19 @@ export function HomeScreen() {
 
     if (state === 'future') {
       Alert.alert('Upcoming tracked day', `${formattedDate} is one of your tracked days.`);
+      return;
+    }
+
+    if (canMarkPastDay) {
+      Alert.alert('Track past day?', `Mark ${formattedDate} as completed?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark done',
+          onPress: () => {
+            void handleMarkPastDay(date);
+          },
+        },
+      ]);
       return;
     }
 
