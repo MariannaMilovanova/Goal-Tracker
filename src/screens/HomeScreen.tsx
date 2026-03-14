@@ -58,6 +58,18 @@ export function HomeScreen() {
     () => new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' }),
     [],
   );
+  const startedLabel = useMemo(() => {
+    if (!goal) {
+      return '';
+    }
+
+    const parsed = new Date(goal.createdAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(parsed);
+  }, [goal]);
   const elapsedDays = useMemo(() => {
     if (!goal) {
       return 0;
@@ -244,7 +256,9 @@ export function HomeScreen() {
               </Pressable>
             </View>
             <Text style={styles.caption}>
-              Day {Math.min(goal.completedDays + 1, goal.totalDays)} of {goal.totalDays}
+              {`Day ${Math.min(goal.completedDays + 1, goal.totalDays)} of ${goal.totalDays}${
+                startedLabel ? ` · Started ${startedLabel}` : ''
+              }`}
             </Text>
           </View>
 
@@ -256,8 +270,8 @@ export function HomeScreen() {
 
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
           <View style={styles.gridSection}>
-            <View style={styles.streakPill}>
-              <Text style={styles.streakText}>
+            <View style={[styles.streakPill, streakDays === 0 ? styles.streakPillInactive : null]}>
+              <Text style={[styles.streakText, streakDays === 0 ? styles.streakTextInactive : null]}>
                 {`🔥 ${streakDays} day${streakDays === 1 ? '' : 's'} streak`}
               </Text>
             </View>
@@ -387,10 +401,17 @@ const styles = StyleSheet.create({
     borderColor: '#F4D2B2',
     marginBottom: 12,
   },
+  streakPillInactive: {
+    backgroundColor: '#F0F0F0',
+    borderColor: '#DDDDDD',
+  },
   streakText: {
     color: '#6F3E13',
     fontSize: 13,
     fontWeight: '700',
+  },
+  streakTextInactive: {
+    color: '#777777',
   },
   footer: {
     flexShrink: 0,
