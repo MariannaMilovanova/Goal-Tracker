@@ -46,7 +46,7 @@ function GridCell({
   index,
   onFrozenCellPress,
 }: {
-  state: GoalDayState | 'future' | 'past';
+  state: GoalDayState | 'future' | 'past' | 'today';
   isHighlighted: boolean;
   index: number;
   onFrozenCellPress?: () => void;
@@ -66,6 +66,7 @@ function GridCell({
   const isFrozen = state === 'skipped';
   const isPast = state === 'past';
   const isOff = state === 'off';
+  const isToday = state === 'today';
   const frozenScaleBoost = isFrozen ? 1.08 : 1;
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -94,11 +95,18 @@ function GridCell({
         isComplete ? styles.cellComplete : null,
         isPast ? styles.cellPast : null,
         isOff ? styles.cellOff : null,
-        !isComplete && !isPast && !isOff ? styles.cellInactive : null,
+        isToday ? styles.cellToday : null,
+        !isComplete && !isPast && !isOff && !isToday ? styles.cellInactive : null,
         animatedStyle,
       ]}
     >
-      <View style={[styles.fill, isComplete || isPast || isOff ? null : styles.fillInactive]}>
+      <View
+        style={[
+          styles.fill,
+          isToday ? styles.todayFill : null,
+          !isComplete && !isPast && !isOff && !isToday ? styles.fillInactive : null,
+        ]}
+      >
         {isComplete || isPast || isOff ? (
           <>
             {isComplete ? (
@@ -129,7 +137,6 @@ function GridCell({
               ) : (
                 <>
                   <View style={styles.offFill} />
-                  <View style={styles.offDot} />
                 </>
               )
             )}
@@ -173,7 +180,7 @@ export function ProgressGrid({
       days: Array<{
         key: string;
         dayIndex: number;
-        state: GoalDayState | 'future' | 'past';
+        state: GoalDayState | 'future' | 'past' | 'today';
         isHighlighted: boolean;
       }>;
     }> = [];
@@ -198,13 +205,15 @@ export function ProgressGrid({
       }
 
       const timelineState = timeline[dayIndex];
-      const state: GoalDayState | 'future' | 'past' =
+      const state: GoalDayState | 'future' | 'past' | 'today' =
         timelineState === 'skipped'
           ? 'skipped'
           : timelineState === 'completed'
             ? 'completed'
             : timelineState === 'off'
               ? 'off'
+            : dayIndex === elapsedDays - 1
+              ? 'today'
             : dayIndex < elapsedDays
               ? 'past'
               : 'future';
@@ -336,6 +345,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
+  cellToday: {
+    shadowColor: '#2F80ED',
+    shadowOpacity: 0.22,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
   fill: {
     width: '100%',
     height: '100%',
@@ -361,6 +377,13 @@ const styles = StyleSheet.create({
     borderColor: '#E4E4E4',
     borderRadius: CELL_RADIUS,
   },
+  todayFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#E6E6E6',
+    borderWidth: 1,
+    borderColor: '#2D6CDF',
+    borderRadius: CELL_RADIUS,
+  },
   checkIcon: {
     position: 'absolute',
     alignSelf: 'center',
@@ -372,13 +395,5 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     top: '50%',
     marginTop: -10,
-  },
-  offDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#C6C6C6',
-    alignSelf: 'center',
-    marginTop: CELL_SIZE / 2 - 4,
   },
 });
