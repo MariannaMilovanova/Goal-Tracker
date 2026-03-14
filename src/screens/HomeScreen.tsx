@@ -22,11 +22,13 @@ export function HomeScreen() {
   const { goal, markDone, undoToday, updateGoal, resetGoal } = useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  const [celebrationCellIndex, setCelebrationCellIndex] = useState<number | null>(null);
+  const [celebrationToken, setCelebrationToken] = useState(0);
+  const [displayCompletedDays, setDisplayCompletedDays] = useState(goal?.completedDays ?? 0);
+  const [isMarkingDone, setIsMarkingDone] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationValues, setCelebrationValues] = useState({ from: 0, to: 0 });
-  const previousCompleted = useRef(goal?.completedDays ?? 0);
-  const isCompleting = useRef(false);
-  const hasInitialized = useRef(false);
+  const sequenceTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const skippedDays = useMemo(
     () => goal?.timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0) ?? 0,
     [goal?.timeline],
@@ -129,55 +131,59 @@ export function HomeScreen() {
 
   useEffect(() => {
     if (!goal) {
-      hasInitialized.current = false;
-      previousCompleted.current = 0;
+      setDisplayCompletedDays(0);
       return;
     }
-
-    if (!hasInitialized.current) {
-      previousCompleted.current = goal.completedDays;
-      hasInitialized.current = true;
-      return;
+    if (!isMarkingDone && !showCelebration) {
+      setDisplayCompletedDays(goal.completedDays);
     }
+  }, [goal, isMarkingDone, showCelebration]);
 
-    const prev = previousCompleted.current;
-    if (goal.completedDays > prev) {
-      const latestCompletedIndex = goal.timeline.lastIndexOf('completed');
-      if (latestCompletedIndex >= 0) {
-        setHighlightIndex(latestCompletedIndex);
-      }
-      const highlightTimer = setTimeout(() => setHighlightIndex(null), 650);
-
-      previousCompleted.current = goal.completedDays;
-      return () => {
-        clearTimeout(highlightTimer);
-      };
-    }
-
-    previousCompleted.current = goal.completedDays;
-  }, [goal]);
+  useEffect(() => {
+    return () => {
+      sequenceTimers.current.forEach((timer) => clearTimeout(timer));
+      sequenceTimers.current = [];
+    };
+  }, []);
 
   if (!goal) {
     return null;
   }
 
   const handleMarkDone = async () => {
-    if (isCompleting.current || showCelebration) {
+    if (isMarkingDone || showCelebration) {
       return;
     }
-    if (!goal) {
-      return;
-    }
-    isCompleting.current = true;
+    const startDate = getLocalDateString(new Date(goal.createdAt));
+    const todayIndex = getDateDiffInDays(startDate, today);
     const fromValue = goal.completedDays;
     const toValue = fromValue + 1;
+    setIsMarkingDone(true);
+    sequenceTimers.current.forEach((timer) => clearTimeout(timer));
+    sequenceTimers.current = [];
+    setHighlightIndex(todayIndex >= 0 ? todayIndex : null);
+    setCelebrationCellIndex(todayIndex >= 0 ? todayIndex : null);
+    setCelebrationToken(Date.now());
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     const didMark = await markDone();
-    isCompleting.current = false;
-    if (didMark) {
-      setCelebrationValues({ from: fromValue, to: toValue });
-      setShowCelebration(true);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!didMark) {
+      setIsMarkingDone(false);
+      setHighlightIndex(null);
+      setCelebrationCellIndex(null);
+      setDisplayCompletedDays(goal.completedDays);
+      return;
     }
+
+    setCelebrationValues({ from: fromValue, to: toValue });
+    sequenceTimers.current.push(setTimeout(() => setDisplayCompletedDays(toValue), 160));
+    sequenceTimers.current.push(setTimeout(() => setShowCelebration(true), 220));
+    sequenceTimers.current.push(
+      setTimeout(() => {
+        setHighlightIndex(null);
+        setCelebrationCellIndex(null);
+      }, 760),
+    );
   };
 
   const handleUndoToday = async () => {
@@ -234,6 +240,16 @@ export function HomeScreen() {
     Alert.alert('Tracked day', `${formattedDate} was one of your tracked days.`);
   };
 
+  const handleCelebrationFinish = () => {
+    sequenceTimers.current.forEach((timer) => clearTimeout(timer));
+    sequenceTimers.current = [];
+    setShowCelebration(false);
+    setIsMarkingDone(false);
+    setHighlightIndex(null);
+    setCelebrationCellIndex(null);
+    setDisplayCompletedDays(goal.completedDays);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -241,7 +257,7 @@ export function HomeScreen() {
           visible={showCelebration}
           fromValue={celebrationValues.from}
           toValue={celebrationValues.to}
-          onFinish={() => setShowCelebration(false)}
+          onFinish={handleCelebrationFinish}
         />
         <View style={styles.fixedHeaderSection}>
           <View style={styles.header}>
@@ -256,15 +272,15 @@ export function HomeScreen() {
               </Pressable>
             </View>
             <Text style={styles.caption}>
-              {`Day ${Math.min(goal.completedDays + 1, goal.totalDays)} of ${goal.totalDays}${
+              {`Day ${Math.min(displayCompletedDays + 1, goal.totalDays)} of ${goal.totalDays}${
                 startedLabel ? ` · Started ${startedLabel}` : ''
               }`}
             </Text>
           </View>
 
           <BigNumber
-            value={goal.completedDays}
-            label={goal.completedDays === 1 ? 'day completed' : 'days completed'}
+            value={displayCompletedDays}
+            label={displayCompletedDays === 1 ? 'day completed' : 'days completed'}
           />
         </View>
 
@@ -280,6 +296,8 @@ export function HomeScreen() {
               timeline={goal.timeline}
               elapsedDays={elapsedDays}
               highlightIndex={highlightIndex}
+              celebrationCellIndex={celebrationCellIndex}
+              celebrationToken={celebrationToken}
               startDate={goal.createdAt}
               trackedWeekdays={goal.trackedWeekdays}
               onCellPress={handleCellPress}
@@ -314,7 +332,7 @@ export function HomeScreen() {
               <PrimaryButton
                 label="Mark as done"
                 onPress={handleMarkDone}
-                disabled={!canCompleteToday}
+                disabled={!canCompleteToday || isMarkingDone || showCelebration}
               />
               {canUndo ? (
                 <Pressable

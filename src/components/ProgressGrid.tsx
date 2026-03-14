@@ -2,7 +2,14 @@ import React, { useEffect, useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { addDaysToDateString, getLocalDateString, isTrackedOnDate } from '../utils/date';
 import { GoalDayState } from '../store/goalTypes';
 
@@ -19,6 +26,8 @@ type ProgressGridProps = {
   timeline: GoalDayState[];
   elapsedDays: number;
   highlightIndex?: number | null;
+  celebrationCellIndex?: number | null;
+  celebrationToken?: number;
   startDate?: string;
   trackedWeekdays?: number[];
   onCellPress?: (payload: ProgressGridCellPressPayload) => void;
@@ -53,6 +62,8 @@ function parseStartDate(startDate?: string): Date | null {
 function GridCell({
   state,
   isHighlighted,
+  isCelebrating,
+  celebrationToken,
   index,
   date,
   isTracked,
@@ -60,20 +71,29 @@ function GridCell({
 }: {
   state: ProgressGridCellState;
   isHighlighted: boolean;
+  isCelebrating: boolean;
+  celebrationToken?: number;
   index: number;
   date: string;
   isTracked: boolean;
   onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 }) {
   const scale = useSharedValue(1);
+  const completionOpacity = useSharedValue(state === 'completed' ? 1 : 0);
+  const completionScale = useSharedValue(state === 'completed' ? 1 : 0.92);
+  const checkOpacity = useSharedValue(state === 'completed' ? 1 : 0);
+  const checkScale = useSharedValue(state === 'completed' ? 1 : 0.82);
+  const fireOpacity = useSharedValue(0);
+  const fireScale = useSharedValue(0.7);
+  const fireTranslateY = useSharedValue(8);
 
   useEffect(() => {
-    if (!isHighlighted) {
+    if (!isHighlighted || isCelebrating) {
       return;
     }
     scale.value = 0.85;
     scale.value = withSpring(1, { damping: 14, stiffness: 180, mass: 0.7 });
-  }, [isHighlighted, scale]);
+  }, [isCelebrating, isHighlighted, scale]);
 
   const gradientId = `progressGradient-${index}`;
   const isComplete = state === 'completed';
@@ -84,13 +104,108 @@ function GridCell({
   const frozenScaleBoost = isFrozen ? 1.08 : 1;
   const completedScaleBoost = isComplete ? 1.06 : 1;
 
+  const handlePress = () => {
+    onCellPress?.({ date, state, isTracked });
+  };
+
+  useEffect(() => {
+    if (isCelebrating) {
+      return;
+    }
+
+    if (isComplete) {
+      completionOpacity.value = 1;
+      completionScale.value = 1;
+      checkOpacity.value = 1;
+      checkScale.value = 1;
+      return;
+    }
+
+    completionOpacity.value = 0;
+    completionScale.value = 0.92;
+    checkOpacity.value = 0;
+    checkScale.value = 0.82;
+    fireOpacity.value = 0;
+    fireScale.value = 0.7;
+    fireTranslateY.value = 8;
+  }, [
+    checkOpacity,
+    checkScale,
+    completionOpacity,
+    completionScale,
+    fireOpacity,
+    fireScale,
+    fireTranslateY,
+    isCelebrating,
+    isComplete,
+  ]);
+
+  useEffect(() => {
+    if (!isCelebrating || !isComplete) {
+      return;
+    }
+
+    scale.value = 1;
+    completionOpacity.value = 0;
+    completionScale.value = 0.92;
+    checkOpacity.value = 0;
+    checkScale.value = 0.82;
+    fireOpacity.value = 0;
+    fireScale.value = 0.7;
+    fireTranslateY.value = 8;
+
+    scale.value = withSequence(
+      withTiming(1.06, { duration: 110 }),
+      withSpring(1, { damping: 13, stiffness: 190, mass: 0.7 }),
+    );
+    completionOpacity.value = withTiming(1, { duration: 180 });
+    completionScale.value = withTiming(1, { duration: 180 });
+    checkOpacity.value = withDelay(110, withTiming(1, { duration: 120 }));
+    checkScale.value = withDelay(110, withSpring(1, { damping: 12, stiffness: 220 }));
+    fireOpacity.value = withDelay(
+      120,
+      withSequence(withTiming(1, { duration: 110 }), withTiming(0, { duration: 180 })),
+    );
+    fireScale.value = withDelay(
+      120,
+      withSequence(withTiming(1.08, { duration: 110 }), withTiming(0.96, { duration: 180 })),
+    );
+    fireTranslateY.value = withDelay(
+      120,
+      withSequence(withTiming(-8, { duration: 110 }), withTiming(-12, { duration: 180 })),
+    );
+  }, [
+    celebrationToken,
+    checkOpacity,
+    checkScale,
+    completionOpacity,
+    completionScale,
+    fireOpacity,
+    fireScale,
+    fireTranslateY,
+    isCelebrating,
+    isComplete,
+    scale,
+  ]);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value * frozenScaleBoost * completedScaleBoost }],
   }));
 
-  const handlePress = () => {
-    onCellPress?.({ date, state, isTracked });
-  };
+  const completionFillStyle = useAnimatedStyle(() => ({
+    opacity: completionOpacity.value,
+    transform: [{ scale: completionScale.value }],
+  }));
+
+  const checkStyle = useAnimatedStyle(() => ({
+    opacity: checkOpacity.value,
+    transform: [{ scale: checkScale.value }],
+  }));
+
+  const fireStyle = useAnimatedStyle(() => ({
+    opacity: fireOpacity.value,
+    transform: [{ translateY: fireTranslateY.value }, { scale: fireScale.value }],
+  }));
 
   if (isFrozen) {
     return (
@@ -128,6 +243,7 @@ function GridCell({
         <View
           style={[
             styles.fill,
+            isComplete ? styles.fillInactive : null,
             isToday ? styles.todayFill : null,
             !isComplete && !isPast && !isOff && !isToday ? styles.fillInactive : null,
           ]}
@@ -136,22 +252,27 @@ function GridCell({
             <>
               {isComplete ? (
                 <>
-                  <Svg width="100%" height="100%">
-                    <Defs>
-                      <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                        <Stop offset="0%" stopColor="#46E08C" stopOpacity="1" />
-                        <Stop offset="100%" stopColor="#1FAE63" stopOpacity="1" />
-                      </LinearGradient>
-                    </Defs>
-                    <Rect
-                      width="100%"
-                      height="100%"
-                      rx={CELL_RADIUS}
-                      ry={CELL_RADIUS}
-                      fill={`url(#${gradientId})`}
-                    />
-                  </Svg>
-                  <Ionicons name="checkmark-sharp" size={20} color="#FFFFFF" style={styles.checkIcon} />
+                  <Animated.View style={[styles.completeFill, completionFillStyle]}>
+                    <Svg width="100%" height="100%">
+                      <Defs>
+                        <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                          <Stop offset="0%" stopColor="#46E08C" stopOpacity="1" />
+                          <Stop offset="100%" stopColor="#1FAE63" stopOpacity="1" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect
+                        width="100%"
+                        height="100%"
+                        rx={CELL_RADIUS}
+                        ry={CELL_RADIUS}
+                        fill={`url(#${gradientId})`}
+                      />
+                    </Svg>
+                  </Animated.View>
+                  <Animated.View style={[styles.completeCheck, checkStyle]}>
+                    <Ionicons name="checkmark-sharp" size={20} color="#FFFFFF" style={styles.checkIcon} />
+                  </Animated.View>
+                  <Animated.Text style={[styles.cellFire, fireStyle]}>🔥</Animated.Text>
                 </>
               ) : (
                 <>
@@ -180,6 +301,8 @@ export function ProgressGrid({
   timeline,
   elapsedDays,
   highlightIndex,
+  celebrationCellIndex,
+  celebrationToken,
   startDate,
   trackedWeekdays = [],
   onCellPress,
@@ -301,6 +424,8 @@ export function ProgressGrid({
                 isTracked={day.isTracked}
                 state={day.state}
                 isHighlighted={day.isHighlighted}
+                isCelebrating={celebrationCellIndex === day.dayIndex}
+                celebrationToken={celebrationToken}
                 onCellPress={onCellPress}
               />
             ))}
@@ -421,6 +546,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D5D5D5',
   },
+  completeFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CELL_RADIUS,
+    overflow: 'hidden',
+  },
+  completeCheck: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pastFill: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(233, 233, 233, 0.72)',
@@ -443,10 +578,15 @@ const styles = StyleSheet.create({
     borderRadius: CELL_RADIUS,
   },
   checkIcon: {
+    marginTop: -1,
+  },
+  cellFire: {
     position: 'absolute',
+    top: -18,
     alignSelf: 'center',
-    top: '50%',
-    marginTop: -10,
+    fontSize: 16,
+    textShadowColor: 'rgba(255, 140, 0, 0.28)',
+    textShadowRadius: 10,
   },
   pastIcon: {
     position: 'absolute',

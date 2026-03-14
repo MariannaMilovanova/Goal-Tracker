@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
 import LottieView from 'lottie-react-native';
 import Animated, {
@@ -11,6 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { getCelebrationMessage } from './celebrationPhrases';
 
 type CelebrationOverlayProps = {
   visible: boolean;
@@ -22,25 +22,17 @@ type CelebrationOverlayProps = {
 const LOTTIE_SOURCE = require('../../assets/lottie/goal-pop.json');
 const isExpoGo =
   Constants.appOwnership === 'expo' || Constants.appOwnership === 'guest';
-const OVERLAY_FADE_IN_MS = 360;
-const OVERLAY_HOLD_MS = 1960;
-const OVERLAY_FADE_OUT_MS = 520;
-const CONTENT_DELAY_MS = 120;
-const CONTENT_FADE_IN_MS = 440;
-const NUMBER_SWAP_DELAY_MS = 320;
-const OLD_NUMBER_SWAP_MS = 920;
-const NEW_NUMBER_SWAP_MS = 1080;
-const MESSAGE_DELAY_MS = 260;
-const MESSAGE_FADE_IN_MS = 320;
+const OVERLAY_FADE_IN_MS = 180;
+const OVERLAY_HOLD_MS = 780;
+const OVERLAY_FADE_OUT_MS = 320;
+const CONTENT_DELAY_MS = 20;
+const CONTENT_FADE_IN_MS = 220;
+const NUMBER_SWAP_DELAY_MS = 40;
+const OLD_NUMBER_SWAP_MS = 220;
+const NEW_NUMBER_SWAP_MS = 260;
+const MESSAGE_DELAY_MS = 320;
+const MESSAGE_FADE_IN_MS = 220;
 const FINISH_MS = OVERLAY_FADE_IN_MS + OVERLAY_HOLD_MS + OVERLAY_FADE_OUT_MS;
-const AFFIRMATIONS = [
-  'Nice work.',
-  'Another step forward.',
-  'You stayed focused today.',
-  'That is real progress.',
-  'You showed up again.',
-] as const;
-
 export function CelebrationOverlay({
   visible,
   fromValue,
@@ -50,9 +42,9 @@ export function CelebrationOverlay({
   const isAnimating = useRef(false);
   const isMounted = useRef(true);
   const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastMessageIndex = useRef<number | null>(null);
-  const [message, setMessage] = useState(AFFIRMATIONS[0]);
-  const overlayOpacity = useSharedValue(0);
+  const lastMessage = useRef<string | null>(null);
+  const [message, setMessage] = useState<string>('Nice work.');
+  const backdropOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.92);
   const fireScale = useSharedValue(0.85);
@@ -77,7 +69,7 @@ export function CelebrationOverlay({
   useEffect(() => {
     if (!visible) {
       isAnimating.current = false;
-      overlayOpacity.value = 0;
+      backdropOpacity.value = 0;
       contentOpacity.value = 0;
       if (finishTimer.current) {
         clearTimeout(finishTimer.current);
@@ -89,12 +81,11 @@ export function CelebrationOverlay({
       return;
     }
     isAnimating.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
-    overlayOpacity.value = 0;
+    backdropOpacity.value = 0;
     contentOpacity.value = 0;
     contentScale.value = 0.92;
-    fireScale.value = 0.85;
+    fireScale.value = 0.9;
     numberScale.value = 0.9;
     oldOpacity.value = 1;
     newOpacity.value = 0;
@@ -103,21 +94,24 @@ export function CelebrationOverlay({
     messageOpacity.value = 0;
     messageTranslateY.value = 8;
 
-    let nextIndex = Math.floor(Math.random() * AFFIRMATIONS.length);
-    if (AFFIRMATIONS.length > 1 && nextIndex === lastMessageIndex.current) {
-      nextIndex = (nextIndex + 1) % AFFIRMATIONS.length;
-    }
-    lastMessageIndex.current = nextIndex;
-    setMessage(AFFIRMATIONS[nextIndex]);
+    const nextMessage = getCelebrationMessage(toValue, lastMessage.current);
+    lastMessage.current = nextMessage;
+    setMessage(nextMessage);
 
-    overlayOpacity.value = withSequence(
+    backdropOpacity.value = withSequence(
       withTiming(1, { duration: OVERLAY_FADE_IN_MS }),
       withDelay(OVERLAY_HOLD_MS, withTiming(0, { duration: OVERLAY_FADE_OUT_MS }))
     );
     contentOpacity.value = withDelay(CONTENT_DELAY_MS, withTiming(1, { duration: CONTENT_FADE_IN_MS }));
     contentScale.value = withDelay(CONTENT_DELAY_MS, withSpring(1, { damping: 14, stiffness: 180 }));
-    fireScale.value = withDelay(160, withSpring(1, { damping: 12, stiffness: 200 }));
-    numberScale.value = withDelay(200, withSpring(1, { damping: 12, stiffness: 200 }));
+    fireScale.value = withDelay(
+      60,
+      withSequence(
+        withTiming(1.1, { duration: 180 }),
+        withTiming(1, { duration: 170 })
+      )
+    );
+    numberScale.value = withDelay(80, withSpring(1, { damping: 13, stiffness: 210 }));
 
     oldOpacity.value = withDelay(NUMBER_SWAP_DELAY_MS, withTiming(0, { duration: OLD_NUMBER_SWAP_MS }));
     oldTranslateY.value = withDelay(
@@ -157,15 +151,16 @@ export function CelebrationOverlay({
     oldOpacity,
     oldTranslateY,
     onFinish,
-    overlayOpacity,
+    backdropOpacity,
     numberScale,
     messageOpacity,
     messageTranslateY,
+    toValue,
     visible,
   ]);
 
-  const overlayStyle = useAnimatedStyle(() => ({
-    opacity: overlayOpacity.value,
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
   }));
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -201,8 +196,8 @@ export function CelebrationOverlay({
   }
 
   return (
-    <Animated.View style={[styles.overlay, overlayStyle]} pointerEvents="auto">
-      <View style={styles.backdrop} />
+    <View style={styles.overlay} pointerEvents="auto">
+      <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Animated.View style={[styles.content, contentStyle]}>
         {!isExpoGo ? (
           <LottieView
@@ -227,7 +222,7 @@ export function CelebrationOverlay({
         </View>
         <Animated.Text style={[styles.text, messageStyle]}>{message}</Animated.Text>
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -244,7 +239,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     alignItems: 'center',
@@ -257,11 +252,13 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 56,
+    textShadowColor: '#FF8A00',
+    textShadowRadius: 25,
   },
   numberWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 12,
     marginBottom: 8,
     width: 140,
     height: 90,
@@ -281,13 +278,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 44,
     fontWeight: '700',
-    color: '#111',
+    color: '#111111',
   },
   text: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 17,
     fontWeight: '600',
-    color: '#111',
+    color: '#555555',
     textAlign: 'center',
     maxWidth: 220,
   },
