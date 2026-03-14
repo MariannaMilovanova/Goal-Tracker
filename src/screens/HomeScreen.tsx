@@ -110,14 +110,11 @@ export function HomeScreen() {
     if (!goal) {
       return false;
     }
-    if (!isTrackedToday) {
-      return false;
-    }
     if (goal.completedDays >= goal.totalDays) {
       return false;
     }
     return canMarkDone(today, goal.lastCompletedDate);
-  }, [goal, isTrackedToday, today]);
+  }, [goal, today]);
 
   const canUndo = useMemo(() => {
     if (!goal) {
@@ -213,6 +210,20 @@ export function HomeScreen() {
     }
 
     if (state === 'completed') {
+      if (date === today && canUndo) {
+        Alert.alert('Undo today?', `Undo today's completion for ${formattedDate}?`, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Undo',
+            style: 'destructive',
+            onPress: () => {
+              void handleUndoToday();
+            },
+          },
+        ]);
+        return;
+      }
+
       Alert.alert('Completed day', `${formattedDate} was completed.`);
       return;
     }
@@ -221,7 +232,7 @@ export function HomeScreen() {
       const title = state === 'today' ? 'Rest day today' : 'Not scheduled';
       const description =
         state === 'today'
-          ? `${formattedDate} is outside your tracking schedule.`
+          ? `${formattedDate} is outside your tracking schedule, but you can still mark it done.`
           : `${formattedDate} is outside your tracking schedule.`;
       Alert.alert(title, description);
       return;
@@ -268,7 +279,7 @@ export function HomeScreen() {
                 accessibilityLabel="Edit goal"
                 style={styles.editButton}
               >
-                <Ionicons name="settings-outline" size={22} color="#4A4A4A" />
+                <Ionicons name="settings-outline" size={24} color="#4A4A4A" />
               </Pressable>
             </View>
             <Text style={styles.caption}>
@@ -317,15 +328,6 @@ export function HomeScreen() {
               >
                 <Text style={styles.newGoalText}>New goal</Text>
               </Pressable>
-              {canUndo ? (
-                <Pressable
-                  onPress={handleUndoToday}
-                  accessibilityRole="button"
-                  style={styles.undoButton}
-                >
-                  <Text style={styles.undoText}>Undo today</Text>
-                </Pressable>
-              ) : null}
             </View>
           ) : (
             <>
@@ -334,20 +336,9 @@ export function HomeScreen() {
                 onPress={handleMarkDone}
                 disabled={!canCompleteToday || isMarkingDone || showCelebration}
               />
-              {canUndo ? (
-                <Pressable
-                  onPress={handleUndoToday}
-                  accessibilityRole="button"
-                  style={styles.undoButton}
-                >
-                  <Text style={styles.undoText}>Undo today</Text>
-                </Pressable>
-              ) : null}
-              {!canCompleteToday ? (
+              {!isTrackedToday ? (
                 <Text style={styles.hint}>
-                  {isTrackedToday
-                    ? 'Come back tomorrow.'
-                    : `Rest day.${nextTrackedLabel ? ` Next check-in ${nextTrackedLabel}.` : ''}`}
+                  {`Rest day.${nextTrackedLabel ? ` Next check-in ${nextTrackedLabel}.` : ''}`}
                 </Text>
               ) : null}
             </>
@@ -454,16 +445,6 @@ const styles = StyleSheet.create({
   newGoalText: {
     color: '#111',
     fontSize: 15,
-    fontWeight: '600',
-  },
-  undoButton: {
-    marginTop: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  undoText: {
-    color: '#4A4A4A',
-    fontSize: 14,
     fontWeight: '600',
   },
   hint: {

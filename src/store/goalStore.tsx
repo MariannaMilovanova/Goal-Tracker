@@ -188,10 +188,6 @@ export function GoalProvider({
     const today = getLocalDateString();
     const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
 
-    if (!isTrackedOnDate(today, reconciledGoal.trackedWeekdays)) {
-      return false;
-    }
-
     if (!canMarkDone(today, reconciledGoal.lastCompletedDate)) {
       return false;
     }

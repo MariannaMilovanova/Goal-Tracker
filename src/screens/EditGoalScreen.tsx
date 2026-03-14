@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
@@ -137,7 +138,8 @@ export function EditGoalScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
             <View style={styles.headerRow}>
-              <Pressable onPress={handleBack} accessibilityLabel="Go back">
+              <Pressable onPress={handleBack} accessibilityLabel="Go back" style={styles.backButton}>
+                <Ionicons name="chevron-back" size={18} color="#4A4A4A" />
                 <Text style={styles.backText}>Back</Text>
               </Pressable>
               <Text style={styles.title}>Edit Goal</Text>
@@ -224,10 +226,12 @@ export function EditGoalScreen() {
             ) : null}
 
             <View style={styles.footer}>
-              <PrimaryButton label="Save" onPress={handleSave} disabled={!canSubmit} />
               <Pressable onPress={handleReset} accessibilityRole="button">
                 <Text style={styles.resetText}>Reset goal</Text>
               </Pressable>
+              <View style={styles.footerPrimary}>
+                <PrimaryButton label="Save" onPress={handleSave} disabled={!canSubmit} />
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -265,11 +269,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   headerSpacer: {
-    width: 40,
+    width: 56,
+  },
+  backButton: {
+    width: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backText: {
     color: '#4A4A4A',
     fontSize: 16,
+    marginLeft: 2,
   },
   title: {
     flex: 1,
@@ -340,8 +350,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  footerPrimary: {
+    minWidth: 120,
   },
   resetText: {
     color: '#B42318',

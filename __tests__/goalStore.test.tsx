@@ -71,6 +71,28 @@ describe('GoalStore', () => {
     });
   });
 
+  it('allows marking done on a non-scheduled day', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    const todayWeekday = new Date().getDay();
+    const trackedWeekday = (todayWeekday + 1) % 7;
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 2, trackedWeekdays: [trackedWeekday] });
+    });
+
+    await act(async () => {
+      const result = await storeRef?.markDone();
+      expect(result).toBe(true);
+    });
+
+    expect(storeRef?.goal?.completedDays).toBe(1);
+    expect(storeRef?.goal?.timeline).toContain('completed');
+  });
+
   it('resets goal and clears storage', async () => {
     let storeRef: StoreRef = null;
     renderWithStore((store) => {
