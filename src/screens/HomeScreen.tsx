@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BigNumber } from '../components/BigNumber';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { ProgressGrid } from '../components/ProgressGrid';
+import { ProgressGrid, ProgressGridCellPressPayload } from '../components/ProgressGrid';
 import { useGoalStore } from '../store/goalStore';
 import {
   canMarkDone,
@@ -54,6 +54,10 @@ export function HomeScreen() {
     }
     return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(parsed);
   }, [nextTrackedDate]);
+  const cellDateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' }),
+    [],
+  );
   const elapsedDays = useMemo(() => {
     if (!goal) {
       return 0;
@@ -158,8 +162,40 @@ export function HomeScreen() {
     await resetGoal();
   };
 
-  const handleFrozenCellPress = () => {
-    Alert.alert('Day skipped', 'The chain continues today.');
+  const handleCellPress = ({ date, state, isTracked }: ProgressGridCellPressPayload) => {
+    const formattedDate = cellDateFormatter.format(new Date(`${date}T00:00:00`));
+
+    if (state === 'skipped') {
+      Alert.alert('Skipped day', `${formattedDate} was a tracked day, but it was skipped. The chain continues today.`);
+      return;
+    }
+
+    if (state === 'completed') {
+      Alert.alert('Completed day', `${formattedDate} was completed.`);
+      return;
+    }
+
+    if (!isTracked) {
+      const title = state === 'today' ? 'Rest day today' : 'Not scheduled';
+      const description =
+        state === 'today'
+          ? `${formattedDate} is outside your tracking schedule.`
+          : `${formattedDate} is outside your tracking schedule.`;
+      Alert.alert(title, description);
+      return;
+    }
+
+    if (state === 'today') {
+      Alert.alert('Tracked today', `${formattedDate} is one of your tracked days. Mark it done when you complete it.`);
+      return;
+    }
+
+    if (state === 'future') {
+      Alert.alert('Upcoming tracked day', `${formattedDate} is one of your tracked days.`);
+      return;
+    }
+
+    Alert.alert('Tracked day', `${formattedDate} was one of your tracked days.`);
   };
 
   return (
@@ -199,7 +235,8 @@ export function HomeScreen() {
               elapsedDays={elapsedDays}
               highlightIndex={highlightIndex}
               startDate={goal.createdAt}
-              onFrozenCellPress={handleFrozenCellPress}
+              trackedWeekdays={goal.trackedWeekdays}
+              onCellPress={handleCellPress}
             />
           </View>
         </ScrollView>

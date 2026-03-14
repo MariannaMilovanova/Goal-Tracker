@@ -3,7 +3,16 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { addDaysToDateString, getLocalDateString, isTrackedOnDate } from '../utils/date';
 import { GoalDayState } from '../store/goalTypes';
+
+export type ProgressGridCellState = GoalDayState | 'future' | 'past' | 'today';
+
+export type ProgressGridCellPressPayload = {
+  date: string;
+  state: ProgressGridCellState;
+  isTracked: boolean;
+};
 
 type ProgressGridProps = {
   total: number;
@@ -11,7 +20,8 @@ type ProgressGridProps = {
   elapsedDays: number;
   highlightIndex?: number | null;
   startDate?: string;
-  onFrozenCellPress?: () => void;
+  trackedWeekdays?: number[];
+  onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 };
 
 const GRID_PADDING = 24;
@@ -44,12 +54,16 @@ function GridCell({
   state,
   isHighlighted,
   index,
-  onFrozenCellPress,
+  date,
+  isTracked,
+  onCellPress,
 }: {
-  state: GoalDayState | 'future' | 'past' | 'today';
+  state: ProgressGridCellState;
   isHighlighted: boolean;
   index: number;
-  onFrozenCellPress?: () => void;
+  date: string;
+  isTracked: boolean;
+  onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 }) {
   const scale = useSharedValue(1);
 
@@ -73,11 +87,15 @@ function GridCell({
     transform: [{ scale: scale.value * frozenScaleBoost }],
   }));
 
+  const handlePress = () => {
+    onCellPress?.({ date, state, isTracked });
+  };
+
   if (isFrozen) {
     return (
       <Animated.View style={[styles.cell, styles.frozenCell, animatedStyle]}>
         <Pressable
-          onPress={onFrozenCellPress}
+          onPress={handlePress}
           accessibilityRole="button"
           accessibilityLabel="Skipped day"
           style={styles.frozenPressable}
@@ -100,49 +118,58 @@ function GridCell({
         animatedStyle,
       ]}
     >
-      <View
-        style={[
-          styles.fill,
-          isToday ? styles.todayFill : null,
-          !isComplete && !isPast && !isOff && !isToday ? styles.fillInactive : null,
-        ]}
+      <Pressable
+        onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel={`Day ${date}`}
+        style={styles.cellPressable}
       >
-        {isComplete || isPast || isOff ? (
-          <>
-            {isComplete ? (
-              <>
-                <Svg width="100%" height="100%">
-                  <Defs>
-                    <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                      <Stop offset="0%" stopColor="#46E08C" stopOpacity="1" />
-                      <Stop offset="100%" stopColor="#1FAE63" stopOpacity="1" />
-                    </LinearGradient>
-                  </Defs>
-                  <Rect
-                    width="100%"
-                    height="100%"
-                    rx={CELL_RADIUS}
-                    ry={CELL_RADIUS}
-                    fill={`url(#${gradientId})`}
-                  />
-                </Svg>
-                <Ionicons name="checkmark-sharp" size={24} color="#FFFFFF" style={styles.checkIcon} />
-              </>
-            ) : (
-              isPast ? (
+        <View
+          style={[
+            styles.fill,
+            isToday ? styles.todayFill : null,
+            !isComplete && !isPast && !isOff && !isToday ? styles.fillInactive : null,
+          ]}
+        >
+          {isComplete || isPast || isOff ? (
+            <>
+              {isComplete ? (
                 <>
-                  <View style={styles.pastFill} />
-                  <Ionicons name="close" size={20} color="#7D7D7D" style={styles.pastIcon} />
+                  <Svg width="100%" height="100%">
+                    <Defs>
+                      <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <Stop offset="0%" stopColor="#46E08C" stopOpacity="1" />
+                        <Stop offset="100%" stopColor="#1FAE63" stopOpacity="1" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect
+                      width="100%"
+                      height="100%"
+                      rx={CELL_RADIUS}
+                      ry={CELL_RADIUS}
+                      fill={`url(#${gradientId})`}
+                    />
+                  </Svg>
+                  <Ionicons name="checkmark-sharp" size={24} color="#FFFFFF" style={styles.checkIcon} />
                 </>
               ) : (
                 <>
-                  <View style={styles.offFill} />
+                  {isPast ? (
+                    <>
+                      <View style={styles.pastFill} />
+                      <Ionicons name="close" size={20} color="#7D7D7D" style={styles.pastIcon} />
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.offFill} />
+                    </>
+                  )}
                 </>
-              )
-            )}
-          </>
-        ) : null}
-      </View>
+              )}
+            </>
+          ) : null}
+        </View>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -153,7 +180,8 @@ export function ProgressGrid({
   elapsedDays,
   highlightIndex,
   startDate,
-  onFrozenCellPress,
+  trackedWeekdays = [],
+  onCellPress,
 }: ProgressGridProps) {
   const monthFormatter = useMemo(
     () => new Intl.DateTimeFormat(undefined, { month: 'long' }),
@@ -171,6 +199,7 @@ export function ProgressGrid({
       baseDate.getMonth(),
       baseDate.getDate(),
     );
+    const startDateString = getLocalDateString(normalizedBaseDate);
 
     const sections: Array<{
       key: string;
@@ -180,7 +209,9 @@ export function ProgressGrid({
       days: Array<{
         key: string;
         dayIndex: number;
-        state: GoalDayState | 'future' | 'past' | 'today';
+        state: ProgressGridCellState;
+        date: string;
+        isTracked: boolean;
         isHighlighted: boolean;
       }>;
     }> = [];
@@ -205,7 +236,9 @@ export function ProgressGrid({
       }
 
       const timelineState = timeline[dayIndex];
-      const state: GoalDayState | 'future' | 'past' | 'today' =
+      const dateString = addDaysToDateString(startDateString, dayIndex);
+      const isTracked = isTrackedOnDate(dateString, trackedWeekdays);
+      const state: ProgressGridCellState =
         timelineState === 'skipped'
           ? 'skipped'
           : timelineState === 'completed'
@@ -214,6 +247,8 @@ export function ProgressGrid({
               ? 'off'
             : dayIndex === elapsedDays - 1
               ? 'today'
+            : !isTracked
+              ? 'off'
             : dayIndex < elapsedDays
               ? 'past'
               : 'future';
@@ -221,6 +256,8 @@ export function ProgressGrid({
       sections[sectionIndex].days.push({
         key: `day-${dayIndex}`,
         dayIndex,
+        date: dateString,
+        isTracked,
         state,
         isHighlighted: highlightIndex === dayIndex,
       });
@@ -240,7 +277,7 @@ export function ProgressGrid({
     });
 
     return sections;
-  }, [elapsedDays, highlightIndex, monthFormatter, startDate, timeline, total]);
+  }, [elapsedDays, highlightIndex, monthFormatter, startDate, timeline, total, trackedWeekdays]);
 
   return (
     <View style={styles.wrapper}>
@@ -257,9 +294,11 @@ export function ProgressGrid({
               <GridCell
                 key={day.key}
                 index={day.dayIndex}
+                date={day.date}
+                isTracked={day.isTracked}
                 state={day.state}
                 isHighlighted={day.isHighlighted}
-                onFrozenCellPress={onFrozenCellPress}
+                onCellPress={onCellPress}
               />
             ))}
             {Array.from({ length: section.trailingOffset }, (_, index) => (
@@ -308,6 +347,10 @@ const styles = StyleSheet.create({
   emptyCell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
+  },
+  cellPressable: {
+    width: '100%',
+    height: '100%',
   },
   frozenCell: {
     overflow: 'hidden',
