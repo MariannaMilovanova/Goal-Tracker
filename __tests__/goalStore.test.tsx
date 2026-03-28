@@ -31,9 +31,6 @@ describe('GoalStore', () => {
     jest.clearAllMocks();
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
 
   it('creates and persists a goal', async () => {
     let storeRef: StoreRef = null;
@@ -163,6 +160,40 @@ describe('GoalStore', () => {
     expect(storeRef?.goal?.completedDays).toBe(1);
     expect(storeRef?.goal?.timeline[1]).toBe('skipped');
     expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-10');
+  });
+
+  it('shifts start date while keeping history on the same relative day positions', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+      JSON.stringify({
+        title: 'Read',
+        totalDays: 5,
+        completedDays: 1,
+        timeline: ['completed', 'skipped', 'off'],
+        trackedWeekdays: [1, 3, 5],
+        lastCompletedDate: '2026-03-10',
+        createdAt: '2026-03-10T15:00:00.000Z',
+      }),
+    );
+
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    }, false);
+
+    await act(async () => {
+      await storeRef?.loadGoal();
+    });
+
+    await act(async () => {
+      const result = await storeRef?.updateGoal({ createdAt: '2026-03-09T15:00:00.000Z' });
+      expect(result).not.toBeNull();
+    });
+
+    expect(storeRef?.goal?.createdAt).toBe('2026-03-09T15:00:00.000Z');
+    expect(storeRef?.goal?.timeline).toEqual(['completed', 'off', 'skipped', 'off', 'skipped']);
+    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-09');
   });
 
   it('resets goal and clears storage', async () => {

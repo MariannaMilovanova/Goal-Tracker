@@ -39,12 +39,16 @@ function countCompletedDays(timeline: GoalDayState[]): number {
   return timeline.reduce((count, state) => (state === 'completed' ? count + 1 : count), 0);
 }
 
-function getGoalStartDate(goal: Goal): string {
-  const createdAt = new Date(goal.createdAt);
-  if (Number.isNaN(createdAt.getTime())) {
-    return getLocalDateString();
+function getLocalDateFromIsoString(value: string): string | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
   }
-  return getLocalDateString(createdAt);
+  return getLocalDateString(parsed);
+}
+
+function getGoalStartDate(goal: Goal): string {
+  return getLocalDateFromIsoString(goal.createdAt) ?? getLocalDateString();
 }
 
 function getTrackedStateForDate(date: string, trackedWeekdays: number[]): GoalDayState {
@@ -338,50 +342,51 @@ export function GoalProvider({
         return null;
       }
 
+      const today = getLocalDateString();
       const nextTitleRaw = updates.title !== undefined ? updates.title.trim() : goal.title;
       const nextTitle = nextTitleRaw.length > 0 ? nextTitleRaw : goal.title;
       const nextTotalDaysRaw = updates.totalDays ?? goal.totalDays;
       const nextTotalDays = Math.max(1, Math.floor(nextTotalDaysRaw));
       const trackedWeekdays = normalizeTrackedWeekdays(updates.trackedWeekdays ?? goal.trackedWeekdays);
+      const currentStartDate = getGoalStartDate(goal);
+      const requestedStartDate =
+        updates.createdAt !== undefined ? getLocalDateFromIsoString(updates.createdAt) : currentStartDate;
+      const nextStartDate = requestedStartDate ?? currentStartDate;
+      const didStartDateChange = nextStartDate !== currentStartDate;
 
-      const rawCompletedDays = updates.completedDays ?? goal.completedDays;
-      const normalizedCompletedDays = Math.max(0, Math.floor(rawCompletedDays));
-      const nextCompletedDays = Math.min(normalizedCompletedDays, nextTotalDays);
-
-      let nextLastCompletedDate = goal.lastCompletedDate;
-      if (updates.lastCompletedDate !== undefined) {
-        nextLastCompletedDate = updates.lastCompletedDate;
-      } else if (updates.completedDays !== undefined) {
-        nextLastCompletedDate = null;
-      }
-      if (nextCompletedDays === 0) {
-        nextLastCompletedDate = null;
-      }
+      const nextCompletedDays = goal.completedDays;
+      let nextLastCompletedDate =
+        updates.lastCompletedDate !== undefined ? updates.lastCompletedDate : goal.lastCompletedDate;
 
       let nextTimeline = [...goal.timeline];
-      let nextCreatedAt = goal.createdAt;
+      let nextCreatedAt =
+        requestedStartDate && updates.createdAt !== undefined ? updates.createdAt : goal.createdAt;
 
-      if (updates.completedDays !== undefined) {
-        if (nextCompletedDays === 0) {
-          nextTimeline = [];
-          nextCreatedAt = new Date().toISOString();
-        } else {
-          nextTimeline = buildTimelineEntries('completed', nextCompletedDays);
+      if (didStartDateChange && goal.lastCompletedDate && updates.lastCompletedDate === undefined) {
+        const lastCompletedOffset = getDateDiffInDays(currentStartDate, goal.lastCompletedDate);
+        if (lastCompletedOffset >= 0) {
+          nextLastCompletedDate = addDaysToDateString(nextStartDate, lastCompletedOffset);
         }
       }
 
-      if (updates.trackedWeekdays !== undefined) {
-        const startDate = getLocalDateString(new Date(nextCreatedAt));
+      if (updates.trackedWeekdays !== undefined || didStartDateChange) {
         nextTimeline = nextTimeline.map((state, index) => {
           if (state === 'completed') {
             return 'completed';
           }
-          const date = addDaysToDateString(startDate, index);
+          const date = addDaysToDateString(nextStartDate, index);
           return getTrackedStateForDate(date, trackedWeekdays);
         });
       }
 
-      let nextGoal = ensureCompletedDays({
+      if (nextTimeline.length > 0) {
+        const lastTimelineDate = addDaysToDateString(nextStartDate, nextTimeline.length - 1);
+        if (lastTimelineDate > today) {
+          return null;
+        }
+      }
+
+      const nextGoal = ensureCompletedDays(reconcilePastTimeline({
         ...goal,
         title: nextTitle,
         totalDays: nextTotalDays,
@@ -391,14 +396,7 @@ export function GoalProvider({
         trackedWeekdays,
         lastCompletedDate: nextLastCompletedDate,
         createdAt: nextCreatedAt,
-      });
-
-      if (nextGoal.completedDays === 0 && nextGoal.lastCompletedDate !== null) {
-        nextGoal = {
-          ...nextGoal,
-          lastCompletedDate: null,
-        };
-      }
+      }, today));
 
       setGoal(nextGoal);
       await persistGoal(nextGoal);

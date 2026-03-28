@@ -24,5 +24,6 @@ export type GoalUpdate = {
   completedDays?: number;
   trackedWeekdays?: number[];
   lastCompletedDate?: string | null;
+  createdAt?: string;
   accentColor?: string;
 };
