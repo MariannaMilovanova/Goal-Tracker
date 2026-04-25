@@ -3,6 +3,7 @@ import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 import { BigNumber } from '../components/BigNumber';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
@@ -18,6 +19,7 @@ import {
 } from '../utils/date';
 
 export function HomeScreen() {
+  const { t, i18n } = useTranslation();
   const { goal, markDone, markDay, undoDay, updateGoal, resetGoal } = useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
@@ -28,8 +30,10 @@ export function HomeScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationValues, setCelebrationValues] = useState({ from: 0, to: 0 });
   const sequenceTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const language = i18n.resolvedLanguage;
   const skippedDays = useMemo(
-    () => goal?.timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0) ?? 0,
+    () =>
+      goal?.timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0) ?? 0,
     [goal?.timeline],
   );
   const visibleTotalDays = useMemo(
@@ -53,11 +57,11 @@ export function HomeScreen() {
     if (Number.isNaN(parsed.getTime())) {
       return null;
     }
-    return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(parsed);
-  }, [nextTrackedDate]);
+    return new Intl.DateTimeFormat(language, { weekday: 'long' }).format(parsed);
+  }, [language, nextTrackedDate]);
   const cellDateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' }),
-    [],
+    () => new Intl.DateTimeFormat(language, { month: 'long', day: 'numeric' }),
+    [language],
   );
   const startedLabel = useMemo(() => {
     if (!goal) {
@@ -69,8 +73,8 @@ export function HomeScreen() {
       return '';
     }
 
-    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(parsed);
-  }, [goal]);
+    return new Intl.DateTimeFormat(language, { month: 'short', day: 'numeric' }).format(parsed);
+  }, [goal, language]);
   const elapsedDays = useMemo(() => {
     if (!goal) {
       return 0;
@@ -203,31 +207,38 @@ export function HomeScreen() {
 
     if (state === 'skipped') {
       if (canMarkPastDay) {
-        Alert.alert('Track past day?', `${formattedDate} was skipped. Mark it as completed now?`, [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Mark done',
-            onPress: () => {
-              void handleMarkPastDay(date);
+        Alert.alert(
+          t('alerts.trackPastDayTitle'),
+          t('alerts.trackPastDaySkippedDescription', { date: formattedDate }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('common.markAsDone'),
+              onPress: () => {
+                void handleMarkPastDay(date);
+              },
             },
-          },
-        ]);
+          ],
+        );
         return;
       }
-      Alert.alert('Skipped day', `${formattedDate} was a tracked day, but it was skipped.`);
+      Alert.alert(
+        t('alerts.skippedDayTitle'),
+        t('alerts.skippedDayDescription', { date: formattedDate }),
+      );
       return;
     }
 
     if (state === 'completed') {
-      const title = date === today ? 'Undo today?' : 'Undo completed day?';
+      const title = date === today ? t('alerts.undoTodayTitle') : t('alerts.undoCompletedDayTitle');
       const description =
         date === today
-          ? `Undo today's completion for ${formattedDate}?`
-          : `Undo completion for ${formattedDate}?`;
+          ? t('alerts.undoTodayDescription', { date: formattedDate })
+          : t('alerts.undoCompletedDayDescription', { date: formattedDate });
       Alert.alert(title, description, [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Undo',
+          text: t('common.undo'),
           style: 'destructive',
           onPress: () => {
             void handleUndoDay(date);
@@ -240,12 +251,12 @@ export function HomeScreen() {
     if (!isTracked) {
       if (date < today && goal.completedDays < goal.totalDays) {
         Alert.alert(
-          'Track past day?',
-          `${formattedDate} was outside your schedule. Mark it as completed anyway?`,
+          t('alerts.trackPastDayTitle'),
+          t('alerts.trackPastDayOffScheduleDescription', { date: formattedDate }),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('common.cancel'), style: 'cancel' },
             {
-              text: 'Mark done',
+              text: t('common.markAsDone'),
               onPress: () => {
                 void handleMarkPastDay(date);
               },
@@ -254,39 +265,53 @@ export function HomeScreen() {
         );
         return;
       }
-      const title = state === 'today' ? 'Rest day today' : 'Not scheduled';
+      const title =
+        state === 'today' ? t('alerts.restDayTodayTitle') : t('alerts.notScheduledTitle');
       const description =
         state === 'today'
-          ? `${formattedDate} is outside your tracking schedule, but you can still mark it done.`
-          : `${formattedDate} is outside your tracking schedule.`;
+          ? t('alerts.restDayTodayDescription', { date: formattedDate })
+          : t('alerts.notScheduledDescription', { date: formattedDate });
       Alert.alert(title, description);
       return;
     }
 
     if (state === 'today') {
-      Alert.alert('Tracked today', `${formattedDate} is one of your tracked days. Mark it done when you complete it.`);
+      Alert.alert(
+        t('alerts.trackedTodayTitle'),
+        t('alerts.trackedTodayDescription', { date: formattedDate }),
+      );
       return;
     }
 
     if (state === 'future') {
-      Alert.alert('Upcoming tracked day', `${formattedDate} is one of your tracked days.`);
+      Alert.alert(
+        t('alerts.upcomingTrackedDayTitle'),
+        t('alerts.upcomingTrackedDayDescription', { date: formattedDate }),
+      );
       return;
     }
 
     if (canMarkPastDay) {
-      Alert.alert('Track past day?', `Mark ${formattedDate} as completed?`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark done',
-          onPress: () => {
-            void handleMarkPastDay(date);
+      Alert.alert(
+        t('alerts.trackPastDayTitle'),
+        t('alerts.trackPastDayDescription', { date: formattedDate }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.markAsDone'),
+            onPress: () => {
+              void handleMarkPastDay(date);
+            },
           },
-        },
-      ]);
+        ],
+      );
       return;
     }
 
-    Alert.alert('Tracked day', `${formattedDate} was one of your tracked days.`);
+    Alert.alert(
+      t('alerts.trackedDayTitle'),
+      t('alerts.trackedDayDescription', { date: formattedDate }),
+    );
   };
 
   const handleCelebrationFinish = () => {
@@ -314,30 +339,39 @@ export function HomeScreen() {
               <Text style={styles.goalTitle}>{goal.title}</Text>
               <Pressable
                 onPress={() => router.push('/edit-goal')}
-                accessibilityLabel="Edit goal"
+                accessibilityLabel={t('home.editGoalAccessibility')}
                 style={styles.editButton}
               >
                 <Ionicons name="settings-outline" size={24} color="#4A4A4A" />
               </Pressable>
             </View>
             <Text style={styles.caption}>
-              {`Day ${Math.min(displayCompletedDays + 1, goal.totalDays)} of ${goal.totalDays}${
-                startedLabel ? ` · Started ${startedLabel}` : ''
-              }`}
+              {startedLabel
+                ? t('home.dayOfTotalStarted', {
+                    current: Math.min(displayCompletedDays + 1, goal.totalDays),
+                    total: goal.totalDays,
+                    date: startedLabel,
+                  })
+                : t('home.dayOfTotal', {
+                    current: Math.min(displayCompletedDays + 1, goal.totalDays),
+                    total: goal.totalDays,
+                  })}
             </Text>
           </View>
 
           <BigNumber
             value={displayCompletedDays}
-            label={displayCompletedDays === 1 ? 'day completed' : 'days completed'}
+            label={t('home.completedLabel', { count: displayCompletedDays })}
           />
         </View>
 
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
           <View style={styles.gridSection}>
             <View style={[styles.streakPill, streakDays === 0 ? styles.streakPillInactive : null]}>
-              <Text style={[styles.streakText, streakDays === 0 ? styles.streakTextInactive : null]}>
-                {`🔥 ${streakDays} day${streakDays === 1 ? '' : 's'} streak`}
+              <Text
+                style={[styles.streakText, streakDays === 0 ? styles.streakTextInactive : null]}
+              >
+                {t('home.streak', { count: streakDays })}
               </Text>
             </View>
             <ProgressGrid
@@ -357,26 +391,26 @@ export function HomeScreen() {
         <View style={styles.footer}>
           {goal.completedDays >= goal.totalDays ? (
             <View style={styles.completedCard}>
-              <Text style={styles.completedTitle}>🎉 Goal completed</Text>
-              <PrimaryButton label="Start again" onPress={handleStartAgain} />
+              <Text style={styles.completedTitle}>{t('home.goalCompleted')}</Text>
+              <PrimaryButton label={t('common.startAgain')} onPress={handleStartAgain} />
               <Pressable
                 onPress={handleNewGoal}
                 accessibilityRole="button"
                 style={styles.newGoalButton}
               >
-                <Text style={styles.newGoalText}>New goal</Text>
+                <Text style={styles.newGoalText}>{t('common.newGoal')}</Text>
               </Pressable>
             </View>
           ) : (
             <>
               <PrimaryButton
-                label="Mark as done"
+                label={t('common.markAsDone')}
                 onPress={handleMarkDone}
                 disabled={!canCompleteToday || isMarkingDone || showCelebration}
               />
               {!isTrackedToday ? (
                 <Text style={styles.hint}>
-                  {`Rest day.${nextTrackedLabel ? ` Next check-in ${nextTrackedLabel}.` : ''}`}
+                  {`${t('home.restDay')}${nextTrackedLabel ? ` ${t('home.nextCheckIn', { day: nextTrackedLabel })}` : ''}`}
                 </Text>
               ) : null}
             </>

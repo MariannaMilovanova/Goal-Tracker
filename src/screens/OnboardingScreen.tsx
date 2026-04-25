@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -17,16 +18,17 @@ import { useGoalStore } from '../store/goalStore';
 
 const PRESET_DURATIONS = [7, 30, 100];
 const WEEKDAY_OPTIONS = [
-  { key: 1, label: 'Mon' },
-  { key: 2, label: 'Tue' },
-  { key: 3, label: 'Wed' },
-  { key: 4, label: 'Thu' },
-  { key: 5, label: 'Fri' },
-  { key: 6, label: 'Sat' },
-  { key: 0, label: 'Sun' },
+  { key: 1, translationKey: 'weekdays.short.mon' },
+  { key: 2, translationKey: 'weekdays.short.tue' },
+  { key: 3, translationKey: 'weekdays.short.wed' },
+  { key: 4, translationKey: 'weekdays.short.thu' },
+  { key: 5, translationKey: 'weekdays.short.fri' },
+  { key: 6, translationKey: 'weekdays.short.sat' },
+  { key: 0, translationKey: 'weekdays.short.sun' },
 ];
 
 export function OnboardingScreen() {
+  const { t } = useTranslation();
   const { createGoal } = useGoalStore();
   const [title, setTitle] = useState('');
   const [selectedDays, setSelectedDays] = useState<number | null>(PRESET_DURATIONS[0]);
@@ -84,21 +86,24 @@ export function OnboardingScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.card}>
-            <Text style={styles.title}>Set your goal</Text>
-            <Text style={styles.subtitle}>Pick a focus and commit to a number of days.</Text>
+            <Text style={styles.title}>{t('onboarding.title')}</Text>
+            <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
 
-            <Text style={styles.label}>Goal title</Text>
+            <Text style={styles.label}>{t('onboarding.goalTitle')}</Text>
             <TextInput
-              placeholder="No sugar"
+              placeholder={t('onboarding.goalPlaceholder')}
               value={title}
               onChangeText={setTitle}
               style={styles.input}
               autoCorrect={false}
               autoCapitalize="sentences"
               returnKeyType="done"
-              accessibilityLabel="Goal title"
+              accessibilityLabel={t('onboarding.goalTitle')}
             />
 
             <DurationPicker
@@ -109,17 +114,18 @@ export function OnboardingScreen() {
               onCustomChange={handleCustomChange}
             />
 
-            <Text style={styles.label}>Track on</Text>
+            <Text style={styles.label}>{t('onboarding.trackOn')}</Text>
             <View style={styles.weekdayRow}>
               {WEEKDAY_OPTIONS.map((weekday) => {
                 const selected = trackedWeekdays.includes(weekday.key);
+                const label = t(weekday.translationKey);
                 return (
                   <Pressable
                     key={weekday.key}
                     onPress={() => toggleTrackedWeekday(weekday.key)}
                     style={[styles.weekdayChip, selected ? styles.weekdayChipSelected : null]}
                     accessibilityRole="button"
-                    accessibilityLabel={weekday.label}
+                    accessibilityLabel={label}
                   >
                     <Text
                       style={[
@@ -127,18 +133,22 @@ export function OnboardingScreen() {
                         selected ? styles.weekdayChipLabelSelected : null,
                       ]}
                     >
-                      {weekday.label}
+                      {label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
             {trackedWeekdays.length === 0 ? (
-              <Text style={styles.errorText}>Select at least one tracked day.</Text>
+              <Text style={styles.errorText}>{t('onboarding.trackedDaysError')}</Text>
             ) : null}
 
             <View style={styles.footer}>
-              <PrimaryButton label="Create goal" onPress={handleCreateGoal} disabled={!canSubmit} />
+              <PrimaryButton
+                label={t('common.createGoal')}
+                onPress={handleCreateGoal}
+                disabled={!canSubmit}
+              />
             </View>
           </View>
         </ScrollView>

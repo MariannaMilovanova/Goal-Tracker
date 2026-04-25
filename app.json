@@ -14,12 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.mj.onegoal",
       "entitlements": {
-        "com.apple.security.application-groups": [
-          "group.com.mj.onegoal"
-        ]
+        "com.apple.security.application-groups": ["group.com.mj.onegoal"]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -41,6 +39,17 @@
       "eas": {
         "projectId": "3cb209ac-28ef-46bb-be76-b7b7f7c7d2d8"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["en", "es", "pt-BR", "de", "fr", "uk"],
+            "android": ["en", "es", "pt-BR", "de", "fr", "uk"]
+          }
+        }
+      ]
+    ]
   }
 }

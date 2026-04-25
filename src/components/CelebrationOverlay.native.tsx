@@ -10,7 +10,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { getCelebrationMessage } from './celebrationPhrases';
+import { useTranslation } from 'react-i18next';
+import { getCelebrationMessageKey } from './celebrationPhrases';
 
 type CelebrationOverlayProps = {
   visible: boolean;
@@ -20,8 +21,7 @@ type CelebrationOverlayProps = {
 };
 
 const LOTTIE_SOURCE = require('../../assets/lottie/goal-pop.json');
-const isExpoGo =
-  Constants.appOwnership === 'expo' || Constants.appOwnership === 'guest';
+const isExpoGo = Constants.appOwnership === 'expo' || Constants.appOwnership === 'guest';
 const OVERLAY_FADE_IN_MS = 180;
 const OVERLAY_HOLD_MS = 780;
 const OVERLAY_FADE_OUT_MS = 320;
@@ -39,11 +39,12 @@ export function CelebrationOverlay({
   toValue,
   onFinish,
 }: CelebrationOverlayProps) {
+  const { t } = useTranslation();
   const isAnimating = useRef(false);
   const isMounted = useRef(true);
   const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastMessage = useRef<string | null>(null);
-  const [message, setMessage] = useState<string>('Nice work.');
+  const lastMessageKey = useRef<string | null>(null);
+  const [messageKey, setMessageKey] = useState<string>('celebration.early.0');
   const backdropOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.92);
@@ -94,42 +95,51 @@ export function CelebrationOverlay({
     messageOpacity.value = 0;
     messageTranslateY.value = 8;
 
-    const nextMessage = getCelebrationMessage(toValue, lastMessage.current);
-    lastMessage.current = nextMessage;
-    setMessage(nextMessage);
+    const nextMessageKey = getCelebrationMessageKey(toValue, lastMessageKey.current);
+    lastMessageKey.current = nextMessageKey;
+    setMessageKey(nextMessageKey);
 
     backdropOpacity.value = withSequence(
       withTiming(1, { duration: OVERLAY_FADE_IN_MS }),
-      withDelay(OVERLAY_HOLD_MS, withTiming(0, { duration: OVERLAY_FADE_OUT_MS }))
+      withDelay(OVERLAY_HOLD_MS, withTiming(0, { duration: OVERLAY_FADE_OUT_MS })),
     );
-    contentOpacity.value = withDelay(CONTENT_DELAY_MS, withTiming(1, { duration: CONTENT_FADE_IN_MS }));
-    contentScale.value = withDelay(CONTENT_DELAY_MS, withSpring(1, { damping: 14, stiffness: 180 }));
+    contentOpacity.value = withDelay(
+      CONTENT_DELAY_MS,
+      withTiming(1, { duration: CONTENT_FADE_IN_MS }),
+    );
+    contentScale.value = withDelay(
+      CONTENT_DELAY_MS,
+      withSpring(1, { damping: 14, stiffness: 180 }),
+    );
     fireScale.value = withDelay(
       60,
-      withSequence(
-        withTiming(1.1, { duration: 180 }),
-        withTiming(1, { duration: 170 })
-      )
+      withSequence(withTiming(1.1, { duration: 180 }), withTiming(1, { duration: 170 })),
     );
     numberScale.value = withDelay(80, withSpring(1, { damping: 13, stiffness: 210 }));
 
-    oldOpacity.value = withDelay(NUMBER_SWAP_DELAY_MS, withTiming(0, { duration: OLD_NUMBER_SWAP_MS }));
+    oldOpacity.value = withDelay(
+      NUMBER_SWAP_DELAY_MS,
+      withTiming(0, { duration: OLD_NUMBER_SWAP_MS }),
+    );
     oldTranslateY.value = withDelay(
       NUMBER_SWAP_DELAY_MS,
-      withTiming(-14, { duration: OLD_NUMBER_SWAP_MS })
+      withTiming(-14, { duration: OLD_NUMBER_SWAP_MS }),
     );
-    newOpacity.value = withDelay(NUMBER_SWAP_DELAY_MS, withTiming(1, { duration: NEW_NUMBER_SWAP_MS }));
+    newOpacity.value = withDelay(
+      NUMBER_SWAP_DELAY_MS,
+      withTiming(1, { duration: NEW_NUMBER_SWAP_MS }),
+    );
     newTranslateY.value = withDelay(
       NUMBER_SWAP_DELAY_MS,
-      withTiming(0, { duration: NEW_NUMBER_SWAP_MS })
+      withTiming(0, { duration: NEW_NUMBER_SWAP_MS }),
     );
     messageOpacity.value = withDelay(
       MESSAGE_DELAY_MS,
-      withTiming(1, { duration: MESSAGE_FADE_IN_MS })
+      withTiming(1, { duration: MESSAGE_FADE_IN_MS }),
     );
     messageTranslateY.value = withDelay(
       MESSAGE_DELAY_MS,
-      withTiming(0, { duration: MESSAGE_FADE_IN_MS })
+      withTiming(0, { duration: MESSAGE_FADE_IN_MS }),
     );
 
     if (finishTimer.current) {
@@ -212,15 +222,11 @@ export function CelebrationOverlay({
         <View style={styles.numberWrapper}>
           <View style={styles.shine} />
           <Animated.View style={[styles.numberStack, numberPopStyle]}>
-            <Animated.Text style={[styles.numberText, oldNumberStyle]}>
-              {fromValue}
-            </Animated.Text>
-            <Animated.Text style={[styles.numberText, newNumberStyle]}>
-              {toValue}
-            </Animated.Text>
+            <Animated.Text style={[styles.numberText, oldNumberStyle]}>{fromValue}</Animated.Text>
+            <Animated.Text style={[styles.numberText, newNumberStyle]}>{toValue}</Animated.Text>
           </Animated.View>
         </View>
-        <Animated.Text style={[styles.text, messageStyle]}>{message}</Animated.Text>
+        <Animated.Text style={[styles.text, messageStyle]}>{t(messageKey)}</Animated.Text>
       </Animated.View>
     </View>
   );

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,16 +21,24 @@ import { useGoalStore } from '../store/goalStore';
 import { addDaysToDateString, getLocalDateString } from '../utils/date';
 
 const WEEKDAY_OPTIONS = [
-  { key: 1, label: 'Mon' },
-  { key: 2, label: 'Tue' },
-  { key: 3, label: 'Wed' },
-  { key: 4, label: 'Thu' },
-  { key: 5, label: 'Fri' },
-  { key: 6, label: 'Sat' },
-  { key: 0, label: 'Sun' },
+  { key: 1, translationKey: 'weekdays.short.mon' },
+  { key: 2, translationKey: 'weekdays.short.tue' },
+  { key: 3, translationKey: 'weekdays.short.wed' },
+  { key: 4, translationKey: 'weekdays.short.thu' },
+  { key: 5, translationKey: 'weekdays.short.fri' },
+  { key: 6, translationKey: 'weekdays.short.sat' },
+  { key: 0, translationKey: 'weekdays.short.sun' },
 ];
 
-const CALENDAR_WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const CALENDAR_WEEKDAY_KEYS = [
+  'weekdays.narrow.mon',
+  'weekdays.narrow.tue',
+  'weekdays.narrow.wed',
+  'weekdays.narrow.thu',
+  'weekdays.narrow.fri',
+  'weekdays.narrow.sat',
+  'weekdays.narrow.sun',
+];
 
 function getGoalStartDateValue(createdAt: string): string {
   const parsed = new Date(createdAt);
@@ -82,6 +91,7 @@ function buildCalendarCells(monthDate: Date) {
 }
 
 export function EditGoalScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { goal, resetGoal, updateGoal } = useGoalStore();
   const [title, setTitle] = useState(goal?.title ?? '');
@@ -89,11 +99,16 @@ export function EditGoalScreen() {
   const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>(
     goal?.trackedWeekdays ?? [0, 1, 2, 3, 4, 5, 6],
   );
-  const [startDate, setStartDate] = useState(goal ? getGoalStartDateValue(goal.createdAt) : getLocalDateString());
+  const [startDate, setStartDate] = useState(
+    goal ? getGoalStartDateValue(goal.createdAt) : getLocalDateString(),
+  );
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState<Date>(
-    goal ? getMonthStart(getGoalStartDateValue(goal.createdAt)) : getMonthStart(getLocalDateString()),
+    goal
+      ? getMonthStart(getGoalStartDateValue(goal.createdAt))
+      : getMonthStart(getLocalDateString()),
   );
+  const language = i18n.resolvedLanguage;
 
   const totalDaysValue = useMemo(() => {
     const parsed = Number(totalDays);
@@ -105,32 +120,31 @@ export function EditGoalScreen() {
 
   const today = getLocalDateString();
   const latestAllowedStartDate =
-    goal && goal.timeline.length > 0 ? addDaysToDateString(today, -(goal.timeline.length - 1)) : today;
+    goal && goal.timeline.length > 0
+      ? addDaysToDateString(today, -(goal.timeline.length - 1))
+      : today;
   const startDateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(undefined, {
+      new Intl.DateTimeFormat(language, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       }),
-    [],
+    [language],
   );
   const monthFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(undefined, {
+      new Intl.DateTimeFormat(language, {
         month: 'long',
         year: 'numeric',
       }),
-    [],
+    [language],
   );
   const calendarCells = useMemo(() => buildCalendarCells(calendarMonth), [calendarMonth]);
   const startDateIsValid = startDate <= latestAllowedStartDate;
 
   const canSubmit =
-    title.trim().length > 0 &&
-    totalDaysValue > 0 &&
-    trackedWeekdays.length > 0 &&
-    startDateIsValid;
+    title.trim().length > 0 && totalDaysValue > 0 && trackedWeekdays.length > 0 && startDateIsValid;
   if (!goal) {
     return null;
   }
@@ -168,8 +182,8 @@ export function EditGoalScreen() {
     const updated = await updateGoal(updates);
     if (!updated) {
       Alert.alert(
-        'Start date unavailable',
-        'Choose an earlier start date so your existing history stays in the past.',
+        t('editGoal.startDateUnavailableTitle'),
+        t('editGoal.startDateUnavailableDescription'),
       );
       return;
     }
@@ -177,10 +191,10 @@ export function EditGoalScreen() {
   };
 
   const handleReset = () => {
-    Alert.alert('Reset goal?', 'This will remove your current goal and progress.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('editGoal.resetGoalTitle'), t('editGoal.resetGoalDescription'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Reset',
+        text: t('common.reset'),
         style: 'destructive',
         onPress: async () => {
           await resetGoal();
@@ -214,30 +228,37 @@ export function EditGoalScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.card}>
             <View style={styles.headerRow}>
-              <Pressable onPress={handleBack} accessibilityLabel="Go back" style={styles.backButton}>
+              <Pressable
+                onPress={handleBack}
+                accessibilityLabel={t('common.back')}
+                style={styles.backButton}
+              >
                 <Ionicons name="chevron-back" size={18} color="#4A4A4A" />
-                <Text style={styles.backText}>Back</Text>
+                <Text style={styles.backText}>{t('common.back')}</Text>
               </Pressable>
-              <Text style={styles.title}>Edit Goal</Text>
+              <Text style={styles.title}>{t('editGoal.title')}</Text>
               <View style={styles.headerSpacer} />
             </View>
 
-            <Text style={styles.label}>Goal title</Text>
+            <Text style={styles.label}>{t('editGoal.goalTitle')}</Text>
             <TextInput
-              placeholder="No sugar"
+              placeholder={t('editGoal.goalPlaceholder')}
               value={title}
               onChangeText={setTitle}
               style={styles.input}
               autoCorrect={false}
               autoCapitalize="sentences"
               returnKeyType="done"
-              accessibilityLabel="Goal title"
+              accessibilityLabel={t('editGoal.goalTitle')}
             />
 
-            <Text style={styles.label}>Total days</Text>
+            <Text style={styles.label}>{t('editGoal.totalDays')}</Text>
             <TextInput
               placeholder="30"
               value={totalDays}
@@ -245,10 +266,10 @@ export function EditGoalScreen() {
               style={styles.input}
               keyboardType="number-pad"
               returnKeyType="done"
-              accessibilityLabel="Total days"
+              accessibilityLabel={t('editGoal.totalDays')}
             />
 
-            <Text style={styles.label}>Start date</Text>
+            <Text style={styles.label}>{t('editGoal.startDate')}</Text>
             <Pressable style={styles.dateField} onPress={openCalendar} accessibilityRole="button">
               <Text style={styles.dateFieldValue}>
                 {startDateFormatter.format(toLocalDisplayDate(startDate))}
@@ -257,23 +278,24 @@ export function EditGoalScreen() {
             </Pressable>
             <Text style={styles.helperText}>
               {goal.timeline.length > 0
-                ? `Latest available start date: ${startDateFormatter.format(
-                    toLocalDisplayDate(latestAllowedStartDate),
-                  )}`
-                : 'Choose the day this goal began.'}
+                ? t('editGoal.latestAvailableStartDate', {
+                    date: startDateFormatter.format(toLocalDisplayDate(latestAllowedStartDate)),
+                  })
+                : t('editGoal.chooseDayGoalBegan')}
             </Text>
 
-            <Text style={styles.label}>Track on</Text>
+            <Text style={styles.label}>{t('editGoal.trackOn')}</Text>
             <View style={styles.weekdayRow}>
               {WEEKDAY_OPTIONS.map((weekday) => {
                 const selected = trackedWeekdays.includes(weekday.key);
+                const label = t(weekday.translationKey);
                 return (
                   <Pressable
                     key={weekday.key}
                     onPress={() => toggleTrackedWeekday(weekday.key)}
                     style={[styles.weekdayChip, selected ? styles.weekdayChipSelected : null]}
                     accessibilityRole="button"
-                    accessibilityLabel={weekday.label}
+                    accessibilityLabel={label}
                   >
                     <Text
                       style={[
@@ -281,19 +303,17 @@ export function EditGoalScreen() {
                         selected ? styles.weekdayChipLabelSelected : null,
                       ]}
                     >
-                      {weekday.label}
+                      {label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
             {trackedWeekdays.length === 0 ? (
-              <Text style={styles.errorText}>Select at least one tracked day.</Text>
+              <Text style={styles.errorText}>{t('onboarding.trackedDaysError')}</Text>
             ) : null}
             {!startDateIsValid ? (
-              <Text style={styles.errorText}>
-                Choose an earlier start date so your current history still fits before today.
-              </Text>
+              <Text style={styles.errorText}>{t('editGoal.startDateValidation')}</Text>
             ) : null}
 
             <View style={styles.footer}>
@@ -303,10 +323,14 @@ export function EditGoalScreen() {
                 style={styles.resetButton}
               >
                 <Ionicons name="refresh-outline" size={16} color="#B42318" />
-                <Text style={styles.resetText}>Reset goal</Text>
+                <Text style={styles.resetText}>{t('editGoal.resetGoal')}</Text>
               </Pressable>
               <View style={styles.footerPrimary}>
-                <PrimaryButton label="Save" onPress={handleSave} disabled={!canSubmit} />
+                <PrimaryButton
+                  label={t('common.save')}
+                  onPress={handleSave}
+                  disabled={!canSubmit}
+                />
               </View>
             </View>
           </View>
@@ -338,9 +362,9 @@ export function EditGoalScreen() {
             </View>
 
             <View style={styles.calendarWeekdays}>
-              {CALENDAR_WEEKDAY_LABELS.map((label, index) => (
-                <Text key={`${label}-${index}`} style={styles.calendarWeekdayLabel}>
-                  {label}
+              {CALENDAR_WEEKDAY_KEYS.map((translationKey) => (
+                <Text key={translationKey} style={styles.calendarWeekdayLabel}>
+                  {t(translationKey)}
                 </Text>
               ))}
             </View>
@@ -380,13 +404,14 @@ export function EditGoalScreen() {
             </View>
 
             <Text style={styles.modalHelperText}>
-              Select any past date up to{' '}
-              {startDateFormatter.format(toLocalDisplayDate(latestAllowedStartDate))}.
+              {t('editGoal.selectPastDateUpTo', {
+                date: startDateFormatter.format(toLocalDisplayDate(latestAllowedStartDate)),
+              })}
             </Text>
 
             <View style={styles.modalActions}>
               <Pressable onPress={closeCalendar} style={styles.modalSecondaryButton}>
-                <Text style={styles.modalSecondaryButtonLabel}>Cancel</Text>
+                <Text style={styles.modalSecondaryButtonLabel}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
           </View>

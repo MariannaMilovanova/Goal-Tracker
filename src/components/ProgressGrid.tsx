@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
   useAnimatedStyle,
@@ -78,6 +79,7 @@ function GridCell({
   isTracked: boolean;
   onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 }) {
+  const { t } = useTranslation();
   const scale = useSharedValue(1);
   const completionOpacity = useSharedValue(state === 'completed' ? 1 : 0);
   const completionScale = useSharedValue(state === 'completed' ? 1 : 0.92);
@@ -213,7 +215,7 @@ function GridCell({
         <Pressable
           onPress={handlePress}
           accessibilityRole="button"
-          accessibilityLabel="Skipped day"
+          accessibilityLabel={t('grid.accessibilitySkippedDay')}
           style={styles.frozenPressable}
         >
           <Image source={FROZEN_CELL_SOURCE} style={styles.frozenImage} resizeMode="cover" />
@@ -237,7 +239,7 @@ function GridCell({
       <Pressable
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel={`Day ${date}`}
+        accessibilityLabel={t('grid.accessibilityDay', { date })}
         style={styles.cellPressable}
       >
         <View
@@ -270,7 +272,12 @@ function GridCell({
                     </Svg>
                   </Animated.View>
                   <Animated.View style={[styles.completeCheck, checkStyle]}>
-                    <Ionicons name="checkmark-sharp" size={20} color="#FFFFFF" style={styles.checkIcon} />
+                    <Ionicons
+                      name="checkmark-sharp"
+                      size={20}
+                      color="#FFFFFF"
+                      style={styles.checkIcon}
+                    />
                   </Animated.View>
                   <Animated.Text style={[styles.cellFire, fireStyle]}>🔥</Animated.Text>
                 </>
@@ -307,9 +314,11 @@ export function ProgressGrid({
   trackedWeekdays = [],
   onCellPress,
 }: ProgressGridProps) {
+  const { i18n } = useTranslation();
+  const language = i18n.resolvedLanguage;
   const monthFormatter = useMemo(
-    () => new Intl.DateTimeFormat(undefined, { month: 'long' }),
-    [],
+    () => new Intl.DateTimeFormat(language, { month: 'long' }),
+    [language],
   );
   const monthSections = useMemo(() => {
     const safeTotal = Math.max(0, Math.floor(total));
@@ -369,13 +378,13 @@ export function ProgressGrid({
             ? 'completed'
             : timelineState === 'off'
               ? 'off'
-            : dayIndex === elapsedDays - 1
-              ? 'today'
-            : !isTracked
-              ? 'off'
-            : dayIndex < elapsedDays
-              ? 'past'
-              : 'future';
+              : dayIndex === elapsedDays - 1
+                ? 'today'
+                : !isTracked
+                  ? 'off'
+                  : dayIndex < elapsedDays
+                    ? 'past'
+                    : 'future';
 
       sections[sectionIndex].days.push({
         key: `day-${dayIndex}`,
