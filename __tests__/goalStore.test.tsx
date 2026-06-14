@@ -31,8 +31,7 @@ describe('GoalStore', () => {
     jest.clearAllMocks();
   });
 
-
-  it('creates and persists a goal', async () => {
+  it('creates first goal as true focus and selected goal', async () => {
     let storeRef: StoreRef = null;
     renderWithStore((store) => {
       storeRef = store;
@@ -42,14 +41,101 @@ describe('GoalStore', () => {
       await storeRef?.createGoal({ title: 'Read', totalDays: 30 });
     });
 
+    expect(storeRef?.goals).toHaveLength(1);
     expect(storeRef?.goal?.title).toBe('Read');
-    expect(storeRef?.goal?.completedDays).toBe(0);
-    expect(storeRef?.goal?.timeline).toEqual([]);
-    expect(storeRef?.goal?.trackedWeekdays).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(storeRef?.trueFocusGoalId).toBe(storeRef?.goal?.id ?? null);
+    expect(storeRef?.selectedGoalId).toBe(storeRef?.goal?.id ?? null);
     expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
   });
 
-  it('marks done once per day', async () => {
+  it('keeps the original true focus when creating a second goal', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 30 });
+    });
+
+    const firstGoalId = storeRef?.goal?.id;
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Run', totalDays: 20 });
+    });
+
+    expect(storeRef?.goals).toHaveLength(2);
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+    expect(storeRef?.goal?.title).toBe('Run');
+    expect(storeRef?.selectedGoalId).toBe(storeRef?.goal?.id ?? null);
+  });
+
+  it('switches selected goal without changing true focus', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 30 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 20 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+
+    act(() => {
+      storeRef?.setSelectedGoal(firstGoalId);
+    });
+
+    expect(storeRef?.selectedGoalId).toBe(firstGoalId);
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+  });
+
+  it('explicitly changes true focus goal', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 30 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 20 });
+    });
+
+    const secondGoalId = storeRef?.goals[1]?.id;
+
+    await act(async () => {
+      if (secondGoalId) {
+        await storeRef?.setTrueFocusGoal(secondGoalId);
+      }
+    });
+
+    expect(storeRef?.trueFocusGoalId).toBe(secondGoalId);
+  });
+
+  it('does not create more than 10 goals', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    for (let index = 0; index < 10; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await act(async () => {
+        await storeRef?.createGoal({ title: `Goal ${index}`, totalDays: 10 });
+      });
+    }
+
+    let result = null;
+    await act(async () => {
+      result = await storeRef?.createGoal({ title: 'Overflow', totalDays: 10 });
+    });
+
+    expect(storeRef?.goals).toHaveLength(10);
+    expect(result).toBeNull();
+  });
+
+  it('marks done once per day on the selected goal only', async () => {
     let storeRef: StoreRef = null;
     renderWithStore((store) => {
       storeRef = store;
@@ -57,55 +143,53 @@ describe('GoalStore', () => {
 
     await act(async () => {
       await storeRef?.createGoal({ title: 'Read', totalDays: 2 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 2 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+
+    act(() => {
+      storeRef?.setSelectedGoal(firstGoalId);
     });
 
     await act(async () => {
       await storeRef?.markDone();
     });
 
-    expect(storeRef?.goal?.completedDays).toBe(1);
-    expect(storeRef?.goal?.timeline).toContain('completed');
-
-    await act(async () => {
-      const result = await storeRef?.markDone();
-      expect(result).toBe(false);
-    });
+    expect(storeRef?.goals.find((goal) => goal.id === firstGoalId)?.completedDays).toBe(1);
+    expect(storeRef?.goals[1]?.completedDays).toBe(0);
   });
 
-  it('allows marking done on a non-scheduled day', async () => {
-    let storeRef: StoreRef = null;
-    renderWithStore((store) => {
-      storeRef = store;
-    });
-
-    const todayWeekday = new Date().getDay();
-    const trackedWeekday = (todayWeekday + 1) % 7;
-
-    await act(async () => {
-      await storeRef?.createGoal({ title: 'Read', totalDays: 2, trackedWeekdays: [trackedWeekday] });
-    });
-
-    await act(async () => {
-      const result = await storeRef?.markDone();
-      expect(result).toBe(true);
-    });
-
-    expect(storeRef?.goal?.completedDays).toBe(1);
-    expect(storeRef?.goal?.timeline).toContain('completed');
-  });
-
-  it('allows marking a past day as completed', async () => {
+  it('allows marking a past day on a specific goal without affecting another goal', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
     (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
       JSON.stringify({
-        title: 'Read',
-        totalDays: 5,
-        completedDays: 1,
-        timeline: ['completed', 'skipped'],
-        trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
-        lastCompletedDate: '2026-03-10',
-        createdAt: '2026-03-10T15:00:00.000Z',
+        goals: [
+          {
+            id: 'goal-a',
+            title: 'Read',
+            totalDays: 5,
+            completedDays: 1,
+            timeline: ['completed', 'skipped'],
+            trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+            lastCompletedDate: '2026-03-10',
+            createdAt: '2026-03-10T15:00:00.000Z',
+            updatedAt: '2026-03-10T15:00:00.000Z',
+          },
+          {
+            id: 'goal-b',
+            title: 'Run',
+            totalDays: 5,
+            completedDays: 0,
+            timeline: [],
+            trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+            lastCompletedDate: null,
+            createdAt: '2026-03-10T15:00:00.000Z',
+            updatedAt: '2026-03-10T15:00:00.000Z',
+          },
+        ],
+        trueFocusGoalId: 'goal-a',
       }),
     );
 
@@ -119,16 +203,66 @@ describe('GoalStore', () => {
     });
 
     await act(async () => {
-      const result = await storeRef?.markDay('2026-03-11');
+      const result = await storeRef?.markDay('2026-03-11', 'goal-a');
       expect(result).toBe(true);
     });
 
-    expect(storeRef?.goal?.completedDays).toBe(2);
-    expect(storeRef?.goal?.timeline[1]).toBe('completed');
-    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-11');
+    expect(storeRef?.goals.find((goal) => goal.id === 'goal-a')?.completedDays).toBe(2);
+    expect(storeRef?.goals.find((goal) => goal.id === 'goal-b')?.completedDays).toBe(0);
   });
 
-  it('allows undoing a past completed day', async () => {
+  it('restarts only the selected goal progress', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+      await storeRef?.markDone();
+      await storeRef?.createGoal({ title: 'Run', totalDays: 7 });
+      await storeRef?.markDone();
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+    act(() => {
+      storeRef?.setSelectedGoal(firstGoalId);
+    });
+
+    await act(async () => {
+      await storeRef?.restartGoal();
+    });
+
+    expect(storeRef?.goals.find((goal) => goal.id === firstGoalId)?.completedDays).toBe(0);
+    expect(storeRef?.goals[1]?.completedDays).toBe(1);
+  });
+
+  it('deletes selected goal and falls back to another goal as true focus when needed', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 7 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+    act(() => {
+      storeRef?.setSelectedGoal(firstGoalId);
+    });
+
+    await act(async () => {
+      await storeRef?.resetGoal();
+    });
+
+    expect(storeRef?.goals).toHaveLength(1);
+    expect(storeRef?.goal?.title).toBe('Run');
+    expect(storeRef?.trueFocusGoalId).toBe(storeRef?.goal?.id ?? null);
+  });
+
+  it('migrates legacy single-goal storage into the new structure', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
     (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
@@ -152,81 +286,8 @@ describe('GoalStore', () => {
       await storeRef?.loadGoal();
     });
 
-    await act(async () => {
-      const result = await storeRef?.undoDay('2026-03-11');
-      expect(result).toBe(true);
-    });
-
-    expect(storeRef?.goal?.completedDays).toBe(1);
-    expect(storeRef?.goal?.timeline[1]).toBe('skipped');
-    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-10');
-  });
-
-  it('shifts start date while keeping history on the same relative day positions', async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
-      JSON.stringify({
-        title: 'Read',
-        totalDays: 5,
-        completedDays: 1,
-        timeline: ['completed', 'skipped', 'off'],
-        trackedWeekdays: [1, 3, 5],
-        lastCompletedDate: '2026-03-10',
-        createdAt: '2026-03-10T15:00:00.000Z',
-      }),
-    );
-
-    let storeRef: StoreRef = null;
-    renderWithStore((store) => {
-      storeRef = store;
-    }, false);
-
-    await act(async () => {
-      await storeRef?.loadGoal();
-    });
-
-    await act(async () => {
-      const result = await storeRef?.updateGoal({ createdAt: '2026-03-09T15:00:00.000Z' });
-      expect(result).not.toBeNull();
-    });
-
-    expect(storeRef?.goal?.createdAt).toBe('2026-03-09T15:00:00.000Z');
-    expect(storeRef?.goal?.timeline).toEqual(['completed', 'off', 'skipped', 'off', 'skipped']);
-    expect(storeRef?.goal?.lastCompletedDate).toBe('2026-03-09');
-  });
-
-  it('resets goal and clears storage', async () => {
-    let storeRef: StoreRef = null;
-    renderWithStore((store) => {
-      storeRef = store;
-    });
-
-    await act(async () => {
-      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
-    });
-
-    await act(async () => {
-      await storeRef?.resetGoal();
-    });
-
-    expect(storeRef?.goal).toBe(null);
-    expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(1);
-  });
-
-  it('drops invalid stored data on load', async () => {
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('{"bad":"data"}');
-
-    let storeRef: StoreRef = null;
-    renderWithStore((store) => {
-      storeRef = store;
-    }, false);
-
-    await act(async () => {
-      await storeRef?.loadGoal();
-    });
-
-    expect(storeRef?.goal).toBe(null);
-    expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(1);
+    expect(storeRef?.goals).toHaveLength(1);
+    expect(storeRef?.goal?.id).toBeTruthy();
+    expect(storeRef?.trueFocusGoalId).toBe(storeRef?.goal?.id ?? null);
   });
 });

@@ -1,56 +1,40 @@
-import { Goal, GoalDayState } from '../store/goalTypes';
+import { Goal, GoalsState, GoalDayState } from '../store/goalTypes';
 import { normalizeTrackedWeekdays } from './date';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_GOALS = 10;
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-export function normalizeGoal(raw: unknown): Goal | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
 
-  const candidate = raw as Goal;
-  const title = typeof candidate.title === 'string' ? candidate.title.trim() : '';
-  const totalDays = isFiniteNumber(candidate.totalDays) ? Math.floor(candidate.totalDays) : 0;
-  const completedDays = isFiniteNumber(candidate.completedDays)
-    ? Math.floor(candidate.completedDays)
-    : 0;
-  const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : '';
-  const accentColor = typeof candidate.accentColor === 'string' ? candidate.accentColor : undefined;
-  const rawTimeline = Array.isArray(candidate.timeline) ? candidate.timeline : [];
-  const trackedWeekdays = normalizeTrackedWeekdays(candidate.trackedWeekdays);
-  const timeline = rawTimeline.filter(
+function normalizeTimeline(
+  rawTimeline: unknown,
+  totalDays: number,
+  completedDays: number,
+): { timeline: GoalDayState[]; completedDays: number } {
+  const timelineEntries = Array.isArray(rawTimeline) ? rawTimeline : [];
+  const timeline = timelineEntries.filter(
     (entry): entry is GoalDayState =>
       entry === 'completed' || entry === 'skipped' || entry === 'off',
   );
 
-  const lastCompletedDate =
-    candidate.lastCompletedDate === null
-      ? null
-      : typeof candidate.lastCompletedDate === 'string'
-        ? candidate.lastCompletedDate
-        : null;
-
-  if (!title || totalDays <= 0 || !createdAt) {
-    return null;
+  if (timeline.length === 0) {
+    const normalizedCompleted = Math.min(Math.max(completedDays, 0), totalDays);
+    return {
+      completedDays: normalizedCompleted,
+      timeline: Array.from({ length: normalizedCompleted }, () => 'completed'),
+    };
   }
 
-  if (lastCompletedDate && !DATE_PATTERN.test(lastCompletedDate)) {
-    return null;
-  }
-
-  let normalizedCompleted = Math.min(Math.max(completedDays, 0), totalDays);
-  let normalizedTimeline: GoalDayState[] = Array.from(
-    { length: normalizedCompleted },
-    () => 'completed',
-  );
-
-  if (timeline.length > 0) {
-    normalizedCompleted = 0;
-    normalizedTimeline = timeline.map((entry) => {
+  let normalizedCompleted = 0;
+  return {
+    completedDays: timeline.reduce((count, entry) => (entry === 'completed' ? count + 1 : count), 0),
+    timeline: timeline.map((entry) => {
       if (entry === 'completed' && normalizedCompleted < totalDays) {
         normalizedCompleted += 1;
         return 'completed';
@@ -59,17 +43,102 @@ export function normalizeGoal(raw: unknown): Goal | null {
         return 'off';
       }
       return 'skipped';
-    });
+    }),
+  };
+}
+
+export function normalizeGoal(
+  raw: unknown,
+  options?: { fallbackId?: string; fallbackUpdatedAt?: string },
+): Goal | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
   }
 
+  const candidate = raw as Partial<Goal>;
+  const id = isNonEmptyString(candidate.id) ? candidate.id.trim() : options?.fallbackId;
+  const title = isNonEmptyString(candidate.title) ? candidate.title.trim() : '';
+  const totalDays = isFiniteNumber(candidate.totalDays) ? Math.floor(candidate.totalDays) : 0;
+  const completedDays = isFiniteNumber(candidate.completedDays)
+    ? Math.floor(candidate.completedDays)
+    : 0;
+  const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : '';
+  const updatedAt =
+    typeof candidate.updatedAt === 'string' && candidate.updatedAt.length > 0
+      ? candidate.updatedAt
+      : options?.fallbackUpdatedAt ?? createdAt;
+  const accentColor = typeof candidate.accentColor === 'string' ? candidate.accentColor : undefined;
+  const trackedWeekdays = normalizeTrackedWeekdays(candidate.trackedWeekdays);
+  const lastCompletedDate =
+    candidate.lastCompletedDate === null
+      ? null
+      : typeof candidate.lastCompletedDate === 'string'
+        ? candidate.lastCompletedDate
+        : null;
+
+  if (!id || !title || totalDays <= 0 || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  if (lastCompletedDate && !DATE_PATTERN.test(lastCompletedDate)) {
+    return null;
+  }
+
+  const normalizedTimeline = normalizeTimeline(candidate.timeline, totalDays, completedDays);
+
   return {
+    id,
     title,
     totalDays,
-    completedDays: normalizedCompleted,
-    timeline: normalizedTimeline,
+    completedDays: Math.min(normalizedTimeline.completedDays, totalDays),
+    timeline: normalizedTimeline.timeline,
     trackedWeekdays,
     lastCompletedDate,
     createdAt,
+    updatedAt,
     accentColor,
+  };
+}
+
+export function normalizeGoalsState(raw: unknown): GoalsState {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      goals: [],
+      trueFocusGoalId: null,
+    };
+  }
+
+  const candidate = raw as Partial<GoalsState>;
+  if (!Array.isArray(candidate.goals)) {
+    return {
+      goals: [],
+      trueFocusGoalId: null,
+    };
+  }
+
+  const goals: Goal[] = [];
+  const seenIds = new Set<string>();
+
+  for (const goalCandidate of candidate.goals) {
+    const normalizedGoal = normalizeGoal(goalCandidate);
+    if (!normalizedGoal || seenIds.has(normalizedGoal.id)) {
+      continue;
+    }
+    seenIds.add(normalizedGoal.id);
+    goals.push(normalizedGoal);
+    if (goals.length >= MAX_GOALS) {
+      break;
+    }
+  }
+
+  const trueFocusGoalId =
+    typeof candidate.trueFocusGoalId === 'string' &&
+    goals.some((goal) => goal.id === candidate.trueFocusGoalId)
+      ? candidate.trueFocusGoalId
+      : goals[0]?.id ?? null;
+
+  return {
+    goals,
+    trueFocusGoalId,
   };
 }

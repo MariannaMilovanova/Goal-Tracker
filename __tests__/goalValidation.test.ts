@@ -1,4 +1,4 @@
-import { normalizeGoal } from '../src/utils/goalValidation';
+import { normalizeGoal, normalizeGoalsState } from '../src/utils/goalValidation';
 
 describe('normalizeGoal', () => {
   it('returns null for invalid goal data', () => {
@@ -8,11 +8,13 @@ describe('normalizeGoal', () => {
 
   it('clamps completedDays within totalDays', () => {
     const goal = normalizeGoal({
+      id: 'goal-1',
       title: 'Read',
       totalDays: 10,
       completedDays: 20,
       lastCompletedDate: '2025-01-01',
       createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
     });
 
     expect(goal?.completedDays).toBe(10);
@@ -23,12 +25,14 @@ describe('normalizeGoal', () => {
 
   it('keeps skipped days when timeline is provided', () => {
     const goal = normalizeGoal({
+      id: 'goal-1',
       title: 'Read',
       totalDays: 10,
       completedDays: 1,
       timeline: ['completed', 'skipped', 'completed', 'invalid'],
       lastCompletedDate: '2025-01-03',
       createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
     });
 
     expect(goal?.completedDays).toBe(2);
@@ -37,6 +41,7 @@ describe('normalizeGoal', () => {
 
   it('keeps explicit off days and normalizes tracked weekdays', () => {
     const goal = normalizeGoal({
+      id: 'goal-1',
       title: 'Run',
       totalDays: 10,
       completedDays: 2,
@@ -44,21 +49,67 @@ describe('normalizeGoal', () => {
       trackedWeekdays: [1, 3, 5, 9, -1],
       lastCompletedDate: null,
       createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
     });
 
     expect(goal?.timeline).toEqual(['completed', 'off', 'skipped']);
     expect(goal?.trackedWeekdays).toEqual([1, 3, 5]);
   });
 
+  it('accepts fallback id and updatedAt for legacy migration', () => {
+    const goal = normalizeGoal(
+      {
+        title: 'Read',
+        totalDays: 10,
+        completedDays: 2,
+        lastCompletedDate: '2025-01-01',
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        fallbackId: 'legacy-goal',
+        fallbackUpdatedAt: '2025-01-02T00:00:00.000Z',
+      },
+    );
+
+    expect(goal?.id).toBe('legacy-goal');
+    expect(goal?.updatedAt).toBe('2025-01-02T00:00:00.000Z');
+  });
+
   it('rejects invalid date format', () => {
     const goal = normalizeGoal({
+      id: 'goal-1',
       title: 'Read',
       totalDays: 10,
       completedDays: 2,
       lastCompletedDate: '01-01-2025',
       createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
     });
 
     expect(goal).toBeNull();
+  });
+});
+
+describe('normalizeGoalsState', () => {
+  it('falls back to the first valid goal when trueFocusGoalId is invalid', () => {
+    const state = normalizeGoalsState({
+      goals: [
+        {
+          id: 'goal-1',
+          title: 'Read',
+          totalDays: 10,
+          completedDays: 1,
+          timeline: ['completed'],
+          trackedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+          lastCompletedDate: '2025-01-01',
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
+      ],
+      trueFocusGoalId: 'missing',
+    });
+
+    expect(state.trueFocusGoalId).toBe('goal-1');
+    expect(state.goals).toHaveLength(1);
   });
 });

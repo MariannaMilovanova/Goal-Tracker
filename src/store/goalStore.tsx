@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 import { clearWidgetSnapshot, writeWidgetSnapshot } from '../native/widgetBridge';
 import {
@@ -10,33 +10,37 @@ import {
   isTrackedOnDate,
   normalizeTrackedWeekdays,
 } from '../utils/date';
-import { normalizeGoal } from '../utils/goalValidation';
+import { normalizeGoal, normalizeGoalsState } from '../utils/goalValidation';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
-import { Goal, GoalDayState, GoalInput, GoalUpdate } from './goalTypes';
+import { MAX_GOALS } from './goalConfig';
+import { Goal, GoalDayState, GoalInput, GoalsState, GoalUpdate } from './goalTypes';
 
 export type GoalStore = {
+  goals: Goal[];
   goal: Goal | null;
+  trueFocusGoalId: string | null;
+  selectedGoalId: string | null;
   isLoading: boolean;
+  canCreateMoreGoals: boolean;
   loadGoal: () => Promise<void>;
-  createGoal: (input: GoalInput) => Promise<Goal>;
-  markDone: () => Promise<boolean>;
-  markDay: (date: string) => Promise<boolean>;
-  undoDay: (date: string) => Promise<boolean>;
-  undoToday: () => Promise<boolean>;
-  resetGoal: () => Promise<void>;
-  updateGoal: (updates: GoalUpdate) => Promise<Goal | null>;
+  createGoal: (input: GoalInput) => Promise<Goal | null>;
+  markDone: (goalId?: string) => Promise<boolean>;
+  markDay: (date: string, goalId?: string) => Promise<boolean>;
+  undoDay: (date: string, goalId?: string) => Promise<boolean>;
+  undoToday: (goalId?: string) => Promise<boolean>;
+  resetGoal: (goalId?: string) => Promise<void>;
+  restartGoal: (goalId?: string) => Promise<Goal | null>;
+  updateGoal: (updates: GoalUpdate, goalId?: string) => Promise<Goal | null>;
+  setSelectedGoal: (goalId: string | null) => void;
+  setTrueFocusGoal: (goalId: string) => Promise<void>;
 };
 
 const STORAGE_KEY = 'one-goal/active-goal';
 
 const GoalContext = createContext<GoalStore | undefined>(undefined);
 
-function buildTimelineEntries(state: GoalDayState, count: number): GoalDayState[] {
-  return Array.from({ length: Math.max(0, Math.floor(count)) }, () => state);
-}
-
-function countCompletedDays(timeline: GoalDayState[]): number {
-  return timeline.reduce((count, state) => (state === 'completed' ? count + 1 : count), 0);
+function generateGoalId() {
+  return `goal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getLocalDateFromIsoString(value: string): string | null {
@@ -53,6 +57,18 @@ function getGoalStartDate(goal: Goal): string {
 
 function getTrackedStateForDate(date: string, trackedWeekdays: number[]): GoalDayState {
   return isTrackedOnDate(date, trackedWeekdays) ? 'skipped' : 'off';
+}
+
+function countCompletedDays(timeline: GoalDayState[]): number {
+  return timeline.reduce((count, state) => (state === 'completed' ? count + 1 : count), 0);
+}
+
+function getLastCompletedDateFromTimeline(goal: Goal, timeline: GoalDayState[]): string | null {
+  const lastCompletedIndex = timeline.lastIndexOf('completed');
+  if (lastCompletedIndex < 0) {
+    return null;
+  }
+  return addDaysToDateString(getGoalStartDate(goal), lastCompletedIndex);
 }
 
 function reconcilePastTimeline(goal: Goal, today: string): Goal {
@@ -97,110 +113,246 @@ function fillTimelineUntilIndex(goal: Goal, timeline: GoalDayState[], targetInde
   return nextTimeline;
 }
 
-function getLastCompletedDateFromTimeline(goal: Goal, timeline: GoalDayState[]): string | null {
-  const lastCompletedIndex = timeline.lastIndexOf('completed');
-  if (lastCompletedIndex < 0) {
+function normalizeGoalForRuntime(goal: Goal, today: string): Goal {
+  return ensureCompletedDays(reconcilePastTimeline(goal, today));
+}
+
+function getDefaultGoalId(goals: Goal[], trueFocusGoalId: string | null): string | null {
+  if (trueFocusGoalId && goals.some((goal) => goal.id === trueFocusGoalId)) {
+    return trueFocusGoalId;
+  }
+  return goals[0]?.id ?? null;
+}
+
+function getFocusGoal(goals: Goal[], trueFocusGoalId: string | null): Goal | null {
+  const goalId = getDefaultGoalId(goals, trueFocusGoalId);
+  if (!goalId) {
     return null;
   }
-  return addDaysToDateString(getGoalStartDate(goal), lastCompletedIndex);
+  return goals.find((goal) => goal.id === goalId) ?? null;
+}
+
+function getSelectedGoalId(
+  goals: Goal[],
+  trueFocusGoalId: string | null,
+  currentSelectedGoalId: string | null,
+): string | null {
+  if (currentSelectedGoalId && goals.some((goal) => goal.id === currentSelectedGoalId)) {
+    return currentSelectedGoalId;
+  }
+  return getDefaultGoalId(goals, trueFocusGoalId);
+}
+
+function normalizeRuntimeState(
+  state: GoalsState,
+  today: string,
+): { state: GoalsState; didChange: boolean } {
+  let didChange = false;
+  const goals = state.goals.map((goal) => {
+    const normalizedGoal = normalizeGoalForRuntime(goal, today);
+    if (
+      normalizedGoal.timeline.length !== goal.timeline.length ||
+      normalizedGoal.completedDays !== goal.completedDays
+    ) {
+      didChange = true;
+    }
+    return normalizedGoal;
+  });
+
+  const trueFocusGoalId = getDefaultGoalId(goals, state.trueFocusGoalId);
+  if (trueFocusGoalId !== state.trueFocusGoalId) {
+    didChange = true;
+  }
+
+  return {
+    state: {
+      goals,
+      trueFocusGoalId,
+    },
+    didChange,
+  };
+}
+
+function replaceGoal(goals: Goal[], nextGoal: Goal): Goal[] {
+  return goals.map((goal) => (goal.id === nextGoal.id ? nextGoal : goal));
+}
+
+function buildPersistedState(goals: Goal[], trueFocusGoalId: string | null): GoalsState {
+  return {
+    goals,
+    trueFocusGoalId: getDefaultGoalId(goals, trueFocusGoalId),
+  };
+}
+
+function isPersistedGoalsState(raw: unknown): raw is GoalsState {
+  return !!raw && typeof raw === 'object' && Array.isArray((raw as GoalsState).goals);
 }
 
 export function GoalProvider({
   children,
   autoLoad = true,
 }: React.PropsWithChildren<{ autoLoad?: boolean }>) {
-  const [goal, setGoal] = useState<Goal | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [trueFocusGoalId, setTrueFocusGoalIdState] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const goalsRef = useRef<Goal[]>([]);
+  const trueFocusGoalIdRef = useRef<string | null>(null);
+  const selectedGoalIdRef = useRef<string | null>(null);
 
-  const persistGoal = useCallback(async (nextGoal: Goal | null) => {
+  const applyState = useCallback((nextState: GoalsState, nextSelectedGoalId?: string | null) => {
+    const resolvedSelectedGoalId = getSelectedGoalId(
+      nextState.goals,
+      nextState.trueFocusGoalId,
+      nextSelectedGoalId ?? selectedGoalIdRef.current,
+    );
+
+    goalsRef.current = nextState.goals;
+    trueFocusGoalIdRef.current = nextState.trueFocusGoalId;
+    selectedGoalIdRef.current = resolvedSelectedGoalId;
+    setGoals(nextState.goals);
+    setTrueFocusGoalIdState(nextState.trueFocusGoalId);
+    setSelectedGoalIdState(resolvedSelectedGoalId);
+  }, []);
+
+  const persistState = useCallback(async (nextState: GoalsState) => {
     try {
-      if (!nextGoal) {
+      if (nextState.goals.length === 0) {
         await AsyncStorage.removeItem(STORAGE_KEY);
         return;
       }
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextGoal));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
     } catch (error) {
-      console.warn('Failed to persist goal to storage.', error);
+      console.warn('Failed to persist goals to storage.', error);
     }
   }, []);
 
-  const syncWidget = useCallback(async (nextGoal: Goal | null) => {
+  const syncWidget = useCallback(async (nextState: GoalsState) => {
     try {
-      if (!nextGoal) {
+      const goal = getFocusGoal(nextState.goals, nextState.trueFocusGoalId);
+      if (!goal) {
         await clearWidgetSnapshot();
         return;
       }
-      await writeWidgetSnapshot(buildWidgetSnapshot(nextGoal));
+      await writeWidgetSnapshot(buildWidgetSnapshot(goal));
     } catch (error) {
       console.warn('Failed to update widget snapshot.', error);
     }
   }, []);
+
+  const selectedGoal = useMemo(
+    () => goals.find((goal) => goal.id === selectedGoalId) ?? null,
+    [goals, selectedGoalId],
+  );
 
   const loadGoal = useCallback(async () => {
     setIsLoading(true);
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        setGoal(null);
+        applyState({ goals: [], trueFocusGoalId: null }, null);
         return;
       }
+
       const parsed = JSON.parse(raw) as unknown;
-      const normalized = normalizeGoal(parsed);
-      if (!normalized) {
-        await AsyncStorage.removeItem(STORAGE_KEY);
-        setGoal(null);
-        return;
+      const today = getLocalDateString();
+
+      let persistedState: GoalsState;
+      let didMigrateLegacy = false;
+
+      if (isPersistedGoalsState(parsed)) {
+        persistedState = normalizeGoalsState(parsed);
+      } else {
+        const fallbackTimestamp = new Date().toISOString();
+        const legacyGoal = normalizeGoal(parsed, {
+          fallbackId: generateGoalId(),
+          fallbackUpdatedAt:
+            typeof (parsed as { createdAt?: string })?.createdAt === 'string'
+              ? (parsed as { createdAt: string }).createdAt
+              : fallbackTimestamp,
+        });
+
+        if (!legacyGoal) {
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          applyState({ goals: [], trueFocusGoalId: null }, null);
+          return;
+        }
+
+        persistedState = {
+          goals: [legacyGoal],
+          trueFocusGoalId: legacyGoal.id,
+        };
+        didMigrateLegacy = true;
       }
 
-      const today = getLocalDateString();
-      const reconciled = ensureCompletedDays(reconcilePastTimeline(normalized, today));
-      const didChange =
-        reconciled.timeline.length !== normalized.timeline.length ||
-        reconciled.completedDays !== normalized.completedDays;
+      const normalizedState = normalizeRuntimeState(persistedState, today);
+      applyState(normalizedState.state, getDefaultGoalId(normalizedState.state.goals, normalizedState.state.trueFocusGoalId));
 
-      setGoal(reconciled);
-      if (didChange) {
-        await persistGoal(reconciled);
-        await syncWidget(reconciled);
+      if (didMigrateLegacy || normalizedState.didChange) {
+        await persistState(normalizedState.state);
+        await syncWidget(normalizedState.state);
       }
     } catch (error) {
-      console.warn('Failed to load goal from storage.', error);
-      setGoal(null);
+      console.warn('Failed to load goals from storage.', error);
+      applyState({ goals: [], trueFocusGoalId: null }, null);
       await AsyncStorage.removeItem(STORAGE_KEY);
     } finally {
       setIsLoading(false);
     }
-  }, [persistGoal, syncWidget]);
+  }, [applyState, persistState, syncWidget]);
 
-  const createGoal = useCallback(
-    async (input: GoalInput) => {
-      const totalDays = Math.max(1, Math.floor(input.totalDays));
-      const trackedWeekdays = normalizeTrackedWeekdays(input.trackedWeekdays);
-      const nextGoal: Goal = {
-        title: input.title.trim(),
-        totalDays,
-        completedDays: 0,
-        timeline: [],
-        trackedWeekdays,
-        lastCompletedDate: null,
-        createdAt: new Date().toISOString(),
-        accentColor: input.accentColor,
-      };
-      setGoal(nextGoal);
-      await persistGoal(nextGoal);
-      await syncWidget(nextGoal);
-      return nextGoal;
-    },
-    [persistGoal, syncWidget],
-  );
+  const createGoal = useCallback(async (input: GoalInput) => {
+    if (goalsRef.current.length >= MAX_GOALS) {
+      return null;
+    }
 
-  const markDone = useCallback(async () => {
+    const now = new Date().toISOString();
+    const nextGoal: Goal = {
+      id: generateGoalId(),
+      title: input.title.trim(),
+      totalDays: Math.max(1, Math.floor(input.totalDays)),
+      completedDays: 0,
+      timeline: [],
+      trackedWeekdays: normalizeTrackedWeekdays(input.trackedWeekdays),
+      lastCompletedDate: null,
+      createdAt: now,
+      updatedAt: now,
+      accentColor: input.accentColor,
+    };
+
+    const nextGoals = [...goalsRef.current, nextGoal];
+    const nextState = buildPersistedState(
+      nextGoals,
+      trueFocusGoalIdRef.current ?? nextGoal.id,
+    );
+    applyState(nextState, nextGoal.id);
+    await persistState(nextState);
+    await syncWidget(nextState);
+    return nextGoal;
+  }, [applyState, persistState, syncWidget]);
+
+  const commitGoals = useCallback(async (
+    nextGoals: Goal[],
+    nextTrueFocusGoalId: string | null,
+    nextSelectedGoalId?: string | null,
+  ) => {
+    const nextState = buildPersistedState(nextGoals, nextTrueFocusGoalId);
+    applyState(nextState, nextSelectedGoalId);
+    await persistState(nextState);
+    await syncWidget(nextState);
+    return nextState;
+  }, [applyState, persistState, syncWidget]);
+
+  const markDone = useCallback(async (goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    const currentGoals = goalsRef.current;
+    const goal = currentGoals.find((entry) => entry.id === activeGoalId);
     if (!goal) {
       return false;
     }
 
     const today = getLocalDateString();
-    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
+    const reconciledGoal = normalizeGoalForRuntime(goal, today);
 
     if (!canMarkDone(today, reconciledGoal.lastCompletedDate)) {
       return false;
@@ -224,26 +376,29 @@ export function GoalProvider({
       nextTimeline[todayIndex] = 'completed';
     }
 
+    const now = new Date().toISOString();
     const nextGoal: Goal = {
       ...reconciledGoal,
       timeline: nextTimeline,
       completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
       lastCompletedDate: today,
+      updatedAt: now,
     };
 
-    setGoal(nextGoal);
-    await persistGoal(nextGoal);
-    await syncWidget(nextGoal);
+    await commitGoals(replaceGoal(currentGoals, nextGoal), trueFocusGoalIdRef.current, activeGoalId);
     return true;
-  }, [goal, persistGoal, syncWidget]);
+  }, [commitGoals]);
 
-  const markDay = useCallback(async (date: string) => {
+  const markDay = useCallback(async (date: string, goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    const currentGoals = goalsRef.current;
+    const goal = currentGoals.find((entry) => entry.id === activeGoalId);
     if (!goal) {
       return false;
     }
 
     const today = getLocalDateString();
-    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
+    const reconciledGoal = normalizeGoalForRuntime(goal, today);
 
     if (date > today) {
       return false;
@@ -276,21 +431,23 @@ export function GoalProvider({
       timeline: writableTimeline,
       completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(writableTimeline)),
       lastCompletedDate: getLastCompletedDateFromTimeline(reconciledGoal, writableTimeline),
+      updatedAt: new Date().toISOString(),
     };
 
-    setGoal(nextGoal);
-    await persistGoal(nextGoal);
-    await syncWidget(nextGoal);
+    await commitGoals(replaceGoal(currentGoals, nextGoal), trueFocusGoalIdRef.current, activeGoalId);
     return true;
-  }, [goal, persistGoal, syncWidget]);
+  }, [commitGoals]);
 
-  const undoDay = useCallback(async (date: string) => {
+  const undoDay = useCallback(async (date: string, goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    const currentGoals = goalsRef.current;
+    const goal = currentGoals.find((entry) => entry.id === activeGoalId);
     if (!goal) {
       return false;
     }
 
     const today = getLocalDateString();
-    const reconciledGoal = ensureCompletedDays(reconcilePastTimeline(goal, today));
+    const reconciledGoal = normalizeGoalForRuntime(goal, today);
     const startDate = getGoalStartDate(reconciledGoal);
     const targetIndex = getDateDiffInDays(startDate, date);
 
@@ -308,9 +465,7 @@ export function GoalProvider({
       if (targetIndex !== nextTimeline.length - 1) {
         return false;
       }
-      if (targetIndex >= 0) {
-        nextTimeline.pop();
-      }
+      nextTimeline.pop();
     } else {
       nextTimeline[targetIndex] = getTrackedStateForDate(date, reconciledGoal.trackedWeekdays);
     }
@@ -320,91 +475,146 @@ export function GoalProvider({
       timeline: nextTimeline,
       completedDays: Math.min(reconciledGoal.totalDays, countCompletedDays(nextTimeline)),
       lastCompletedDate: getLastCompletedDateFromTimeline(reconciledGoal, nextTimeline),
+      updatedAt: new Date().toISOString(),
     };
 
-    setGoal(nextGoal);
-    await persistGoal(nextGoal);
-    await syncWidget(nextGoal);
+    await commitGoals(replaceGoal(currentGoals, nextGoal), trueFocusGoalIdRef.current, activeGoalId);
     return true;
-  }, [goal, persistGoal, syncWidget]);
+  }, [commitGoals]);
 
-  const undoToday = useCallback(async () => undoDay(getLocalDateString()), [undoDay]);
+  const undoToday = useCallback(async (goalId?: string) => undoDay(getLocalDateString(), goalId), [undoDay]);
 
-  const resetGoal = useCallback(async () => {
-    setGoal(null);
-    await persistGoal(null);
-    await syncWidget(null);
-  }, [persistGoal, syncWidget]);
+  const resetGoal = useCallback(async (goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    if (!activeGoalId) {
+      return;
+    }
 
-  const updateGoal = useCallback(
-    async (updates: GoalUpdate) => {
-      if (!goal) {
+    const currentGoals = goalsRef.current;
+    const currentSelectedGoalId = selectedGoalIdRef.current;
+    const currentTrueFocusGoalId = trueFocusGoalIdRef.current;
+    const nextGoals = currentGoals.filter((goal) => goal.id !== activeGoalId);
+    const nextTrueFocusGoalId =
+      currentTrueFocusGoalId === activeGoalId ? nextGoals[0]?.id ?? null : currentTrueFocusGoalId;
+    const nextSelectedGoalId =
+      currentSelectedGoalId === activeGoalId
+        ? getDefaultGoalId(nextGoals, nextTrueFocusGoalId)
+        : currentSelectedGoalId;
+
+    await commitGoals(nextGoals, nextTrueFocusGoalId, nextSelectedGoalId);
+  }, [commitGoals]);
+
+  const restartGoal = useCallback(async (goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    const currentGoals = goalsRef.current;
+    const goal = currentGoals.find((entry) => entry.id === activeGoalId);
+    if (!goal) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const nextGoal: Goal = {
+      ...goal,
+      completedDays: 0,
+      timeline: [],
+      lastCompletedDate: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await commitGoals(replaceGoal(currentGoals, nextGoal), trueFocusGoalIdRef.current, activeGoalId);
+    return nextGoal;
+  }, [commitGoals]);
+
+  const updateGoal = useCallback(async (updates: GoalUpdate, goalId?: string) => {
+    const activeGoalId = goalId ?? selectedGoalIdRef.current;
+    const currentGoals = goalsRef.current;
+    const goal = currentGoals.find((entry) => entry.id === activeGoalId);
+    if (!goal) {
+      return null;
+    }
+
+    const today = getLocalDateString();
+    const nextTitleRaw = updates.title !== undefined ? updates.title.trim() : goal.title;
+    const nextTitle = nextTitleRaw.length > 0 ? nextTitleRaw : goal.title;
+    const nextTotalDays = Math.max(1, Math.floor(updates.totalDays ?? goal.totalDays));
+    const trackedWeekdays = normalizeTrackedWeekdays(updates.trackedWeekdays ?? goal.trackedWeekdays);
+    const currentStartDate = getGoalStartDate(goal);
+    const requestedStartDate =
+      updates.createdAt !== undefined ? getLocalDateFromIsoString(updates.createdAt) : currentStartDate;
+    const nextStartDate = requestedStartDate ?? currentStartDate;
+    const didStartDateChange = nextStartDate !== currentStartDate;
+
+    let nextLastCompletedDate =
+      updates.lastCompletedDate !== undefined ? updates.lastCompletedDate : goal.lastCompletedDate;
+    let nextTimeline = [...goal.timeline];
+    const nextCreatedAt =
+      requestedStartDate && updates.createdAt !== undefined ? updates.createdAt : goal.createdAt;
+
+    if (didStartDateChange && goal.lastCompletedDate && updates.lastCompletedDate === undefined) {
+      const lastCompletedOffset = getDateDiffInDays(currentStartDate, goal.lastCompletedDate);
+      if (lastCompletedOffset >= 0) {
+        nextLastCompletedDate = addDaysToDateString(nextStartDate, lastCompletedOffset);
+      }
+    }
+
+    if (updates.trackedWeekdays !== undefined || didStartDateChange) {
+      nextTimeline = nextTimeline.map((state, index) => {
+        if (state === 'completed') {
+          return 'completed';
+        }
+        const date = addDaysToDateString(nextStartDate, index);
+        return getTrackedStateForDate(date, trackedWeekdays);
+      });
+    }
+
+    if (nextTimeline.length > 0) {
+      const lastTimelineDate = addDaysToDateString(nextStartDate, nextTimeline.length - 1);
+      if (lastTimelineDate > today) {
         return null;
       }
+    }
 
-      const today = getLocalDateString();
-      const nextTitleRaw = updates.title !== undefined ? updates.title.trim() : goal.title;
-      const nextTitle = nextTitleRaw.length > 0 ? nextTitleRaw : goal.title;
-      const nextTotalDaysRaw = updates.totalDays ?? goal.totalDays;
-      const nextTotalDays = Math.max(1, Math.floor(nextTotalDaysRaw));
-      const trackedWeekdays = normalizeTrackedWeekdays(updates.trackedWeekdays ?? goal.trackedWeekdays);
-      const currentStartDate = getGoalStartDate(goal);
-      const requestedStartDate =
-        updates.createdAt !== undefined ? getLocalDateFromIsoString(updates.createdAt) : currentStartDate;
-      const nextStartDate = requestedStartDate ?? currentStartDate;
-      const didStartDateChange = nextStartDate !== currentStartDate;
-
-      const nextCompletedDays = goal.completedDays;
-      let nextLastCompletedDate =
-        updates.lastCompletedDate !== undefined ? updates.lastCompletedDate : goal.lastCompletedDate;
-
-      let nextTimeline = [...goal.timeline];
-      let nextCreatedAt =
-        requestedStartDate && updates.createdAt !== undefined ? updates.createdAt : goal.createdAt;
-
-      if (didStartDateChange && goal.lastCompletedDate && updates.lastCompletedDate === undefined) {
-        const lastCompletedOffset = getDateDiffInDays(currentStartDate, goal.lastCompletedDate);
-        if (lastCompletedOffset >= 0) {
-          nextLastCompletedDate = addDaysToDateString(nextStartDate, lastCompletedOffset);
-        }
-      }
-
-      if (updates.trackedWeekdays !== undefined || didStartDateChange) {
-        nextTimeline = nextTimeline.map((state, index) => {
-          if (state === 'completed') {
-            return 'completed';
-          }
-          const date = addDaysToDateString(nextStartDate, index);
-          return getTrackedStateForDate(date, trackedWeekdays);
-        });
-      }
-
-      if (nextTimeline.length > 0) {
-        const lastTimelineDate = addDaysToDateString(nextStartDate, nextTimeline.length - 1);
-        if (lastTimelineDate > today) {
-          return null;
-        }
-      }
-
-      const nextGoal = ensureCompletedDays(reconcilePastTimeline({
+    const nextGoal = normalizeGoalForRuntime(
+      {
         ...goal,
         title: nextTitle,
         totalDays: nextTotalDays,
         accentColor: updates.accentColor ?? goal.accentColor,
-        completedDays: nextCompletedDays,
         timeline: nextTimeline,
         trackedWeekdays,
         lastCompletedDate: nextLastCompletedDate,
         createdAt: nextCreatedAt,
-      }, today));
+        updatedAt: new Date().toISOString(),
+      },
+      today,
+    );
 
-      setGoal(nextGoal);
-      await persistGoal(nextGoal);
-      await syncWidget(nextGoal);
-      return nextGoal;
-    },
-    [goal, persistGoal, syncWidget],
-  );
+    await commitGoals(replaceGoal(currentGoals, nextGoal), trueFocusGoalIdRef.current, activeGoalId);
+    return nextGoal;
+  }, [commitGoals]);
+
+  const setSelectedGoal = useCallback((goalId: string | null) => {
+    if (!goalId) {
+      const fallbackGoalId = getDefaultGoalId(goalsRef.current, trueFocusGoalIdRef.current);
+      selectedGoalIdRef.current = fallbackGoalId;
+      setSelectedGoalIdState(fallbackGoalId);
+      return;
+    }
+    if (!goalsRef.current.some((goal) => goal.id === goalId)) {
+      return;
+    }
+    selectedGoalIdRef.current = goalId;
+    setSelectedGoalIdState(goalId);
+  }, []);
+
+  const setTrueFocusGoal = useCallback(async (goalId: string) => {
+    const currentGoals = goalsRef.current;
+    if (!currentGoals.some((goal) => goal.id === goalId)) {
+      return;
+    }
+    await commitGoals(currentGoals, goalId, selectedGoalIdRef.current);
+  }, [commitGoals]);
 
   React.useEffect(() => {
     if (autoLoad) {
@@ -412,21 +622,42 @@ export function GoalProvider({
     }
   }, [autoLoad, loadGoal]);
 
-  const value = useMemo<GoalStore>(
-    () => ({
-      goal,
-      isLoading,
-      loadGoal,
-      createGoal,
-      markDone,
-      markDay,
-      undoDay,
-      undoToday,
-      resetGoal,
-      updateGoal,
-    }),
-    [goal, isLoading, loadGoal, createGoal, markDone, markDay, undoDay, undoToday, resetGoal, updateGoal],
-  );
+  const value = useMemo<GoalStore>(() => ({
+    goals,
+    goal: selectedGoal,
+    trueFocusGoalId,
+    selectedGoalId,
+    isLoading,
+    canCreateMoreGoals: goals.length < MAX_GOALS,
+    loadGoal,
+    createGoal,
+    markDone,
+    markDay,
+    undoDay,
+    undoToday,
+    resetGoal,
+    restartGoal,
+    updateGoal,
+    setSelectedGoal,
+    setTrueFocusGoal,
+  }), [
+    goals,
+    selectedGoal,
+    trueFocusGoalId,
+    selectedGoalId,
+    isLoading,
+    loadGoal,
+    createGoal,
+    markDone,
+    markDay,
+    undoDay,
+    undoToday,
+    resetGoal,
+    restartGoal,
+    updateGoal,
+    setSelectedGoal,
+    setTrueFocusGoal,
+  ]);
 
   return <GoalContext.Provider value={value}>{children}</GoalContext.Provider>;
 }

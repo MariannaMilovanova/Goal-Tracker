@@ -9,7 +9,9 @@ import { BigNumber } from '../components/BigNumber';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProgressGrid, ProgressGridCellPressPayload } from '../components/ProgressGrid';
+import { MAX_GOALS } from '../store/goalConfig';
 import { useGoalStore } from '../store/goalStore';
+import { getGoalStreak, getSkippedDaysCount } from '../utils/goalMetrics';
 import {
   canMarkDone,
   getDateDiffInDays,
@@ -20,7 +22,7 @@ import {
 
 export function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { goal, markDone, markDay, undoDay, updateGoal, resetGoal } = useGoalStore();
+  const { goal, markDone, markDay, undoDay, restartGoal, goals } = useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [celebrationCellIndex, setCelebrationCellIndex] = useState<number | null>(null);
@@ -32,9 +34,8 @@ export function HomeScreen() {
   const sequenceTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const language = i18n.resolvedLanguage;
   const skippedDays = useMemo(
-    () =>
-      goal?.timeline.reduce((count, state) => (state === 'skipped' ? count + 1 : count), 0) ?? 0,
-    [goal?.timeline],
+    () => (goal ? getSkippedDaysCount(goal) : 0),
+    [goal],
   );
   const visibleTotalDays = useMemo(
     () => (goal ? goal.totalDays + skippedDays : 0),
@@ -85,28 +86,7 @@ export function HomeScreen() {
     return Math.max(0, Math.min(inclusiveDays, visibleTotalDays));
   }, [goal, visibleTotalDays]);
   const streakDays = useMemo(() => {
-    if (!goal || goal.timeline.length === 0) {
-      return 0;
-    }
-
-    let streak = 0;
-
-    for (let index = goal.timeline.length - 1; index >= 0; index -= 1) {
-      const state = goal.timeline[index];
-
-      if (state === 'off') {
-        continue;
-      }
-
-      if (state === 'completed') {
-        streak += 1;
-        continue;
-      }
-
-      break;
-    }
-
-    return streak;
+    return goal ? getGoalStreak(goal) : 0;
   }, [goal]);
 
   const canCompleteToday = useMemo(() => {
@@ -191,14 +171,14 @@ export function HomeScreen() {
   };
 
   const handleStartAgain = async () => {
-    const updated = await updateGoal({ completedDays: 0 });
+    const updated = await restartGoal();
     if (updated) {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
   const handleNewGoal = async () => {
-    await resetGoal();
+    router.push('/new-goal');
   };
 
   const handleCellPress = ({ date, state, isTracked }: ProgressGridCellPressPayload) => {
@@ -337,13 +317,22 @@ export function HomeScreen() {
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <Text style={styles.goalTitle}>{goal.title}</Text>
-              <Pressable
-                onPress={() => router.push('/edit-goal')}
-                accessibilityLabel={t('home.editGoalAccessibility')}
-                style={styles.editButton}
-              >
-                <Ionicons name="settings-outline" size={24} color="#4A4A4A" />
-              </Pressable>
+              <View style={styles.headerActions}>
+                <Pressable
+                  onPress={() => router.push('/goals')}
+                  accessibilityLabel="Goals list"
+                  style={styles.editButton}
+                >
+                  <Ionicons name="grid-outline" size={24} color="#4A4A4A" />
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push('/edit-goal')}
+                  accessibilityLabel={t('home.editGoalAccessibility')}
+                  style={styles.editButton}
+                >
+                  <Ionicons name="settings-outline" size={24} color="#4A4A4A" />
+                </Pressable>
+              </View>
             </View>
             <Text style={styles.caption}>
               {startedLabel
@@ -393,13 +382,15 @@ export function HomeScreen() {
             <View style={styles.completedCard}>
               <Text style={styles.completedTitle}>{t('home.goalCompleted')}</Text>
               <PrimaryButton label={t('common.startAgain')} onPress={handleStartAgain} />
-              <Pressable
-                onPress={handleNewGoal}
-                accessibilityRole="button"
-                style={styles.newGoalButton}
-              >
-                <Text style={styles.newGoalText}>{t('common.newGoal')}</Text>
-              </Pressable>
+              {goals.length < MAX_GOALS ? (
+                <Pressable
+                  onPress={handleNewGoal}
+                  accessibilityRole="button"
+                  style={styles.newGoalButton}
+                >
+                  <Text style={styles.newGoalText}>{t('common.newGoal')}</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : (
             <>
@@ -452,6 +443,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   goalTitle: {
     fontSize: 28,

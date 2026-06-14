@@ -1,6 +1,7 @@
 export type GoalDayState = 'completed' | 'skipped' | 'off';
 
 export type Goal = {
+  id: string;
   title: string;
   totalDays: number;
   completedDays: number;
@@ -8,7 +9,13 @@ export type Goal = {
   trackedWeekdays: number[];
   lastCompletedDate: string | null;
   createdAt: string;
+  updatedAt: string;
   accentColor?: string;
+};
+
+export type GoalsState = {
+  goals: Goal[];
+  trueFocusGoalId: string | null;
 };
 
 export type GoalInput = {
@@ -21,7 +28,6 @@ export type GoalInput = {
 export type GoalUpdate = {
   title?: string;
   totalDays?: number;
-  completedDays?: number;
   trackedWeekdays?: number[];
   lastCompletedDate?: string | null;
   createdAt?: string;

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,10 +12,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { DurationPicker } from '../components/DurationPicker';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
+import { MAX_GOALS } from '../store/goalConfig';
 
 const PRESET_DURATIONS = [7, 30, 100];
 const WEEKDAY_OPTIONS = [
@@ -29,7 +32,8 @@ const WEEKDAY_OPTIONS = [
 
 export function OnboardingScreen() {
   const { t } = useTranslation();
-  const { createGoal } = useGoalStore();
+  const router = useRouter();
+  const { createGoal, goals } = useGoalStore();
   const [title, setTitle] = useState('');
   const [selectedDays, setSelectedDays] = useState<number | null>(PRESET_DURATIONS[0]);
   const [customDays, setCustomDays] = useState('');
@@ -43,7 +47,11 @@ export function OnboardingScreen() {
     return selectedDays ?? 0;
   }, [customDays, selectedDays]);
 
-  const canSubmit = title.trim().length > 0 && totalDays > 0 && trackedWeekdays.length > 0;
+  const canSubmit =
+    title.trim().length > 0 &&
+    totalDays > 0 &&
+    trackedWeekdays.length > 0 &&
+    goals.length < MAX_GOALS;
 
   const handleSelectPreset = (value: number) => {
     setSelectedDays(value);
@@ -64,11 +72,16 @@ export function OnboardingScreen() {
     if (!canSubmit) {
       return;
     }
-    await createGoal({
+    const created = await createGoal({
       title: title.trim(),
       totalDays,
       trackedWeekdays,
     });
+    if (!created) {
+      Alert.alert('Goal limit reached', 'You can track up to 10 goals.');
+      return;
+    }
+    router.replace('/');
   };
 
   const toggleTrackedWeekday = (weekday: number) => {
@@ -141,6 +154,9 @@ export function OnboardingScreen() {
             </View>
             {trackedWeekdays.length === 0 ? (
               <Text style={styles.errorText}>{t('onboarding.trackedDaysError')}</Text>
+            ) : null}
+            {goals.length >= MAX_GOALS ? (
+              <Text style={styles.errorText}>You can track up to 10 goals.</Text>
             ) : null}
 
             <View style={styles.footer}>
