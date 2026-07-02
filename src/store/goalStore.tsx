@@ -28,6 +28,7 @@ export type GoalStore = {
   markDay: (date: string, goalId?: string) => Promise<boolean>;
   undoDay: (date: string, goalId?: string) => Promise<boolean>;
   undoToday: (goalId?: string) => Promise<boolean>;
+  deleteGoal: (goalId?: string) => Promise<boolean>;
   resetGoal: (goalId?: string) => Promise<void>;
   restartGoal: (goalId?: string) => Promise<Goal | null>;
   updateGoal: (updates: GoalUpdate, goalId?: string) => Promise<Goal | null>;
@@ -484,25 +485,36 @@ export function GoalProvider({
 
   const undoToday = useCallback(async (goalId?: string) => undoDay(getLocalDateString(), goalId), [undoDay]);
 
-  const resetGoal = useCallback(async (goalId?: string) => {
+  const deleteGoal = useCallback(async (goalId?: string) => {
     const activeGoalId = goalId ?? selectedGoalIdRef.current;
     if (!activeGoalId) {
-      return;
+      return false;
     }
 
     const currentGoals = goalsRef.current;
+    if (!currentGoals.some((goal) => goal.id === activeGoalId)) {
+      return false;
+    }
+
     const currentSelectedGoalId = selectedGoalIdRef.current;
     const currentTrueFocusGoalId = trueFocusGoalIdRef.current;
+    if (activeGoalId === currentTrueFocusGoalId) {
+      return false;
+    }
+
     const nextGoals = currentGoals.filter((goal) => goal.id !== activeGoalId);
-    const nextTrueFocusGoalId =
-      currentTrueFocusGoalId === activeGoalId ? nextGoals[0]?.id ?? null : currentTrueFocusGoalId;
     const nextSelectedGoalId =
       currentSelectedGoalId === activeGoalId
-        ? getDefaultGoalId(nextGoals, nextTrueFocusGoalId)
+        ? getDefaultGoalId(nextGoals, currentTrueFocusGoalId)
         : currentSelectedGoalId;
 
-    await commitGoals(nextGoals, nextTrueFocusGoalId, nextSelectedGoalId);
+    await commitGoals(nextGoals, currentTrueFocusGoalId, nextSelectedGoalId);
+    return true;
   }, [commitGoals]);
+
+  const resetGoal = useCallback(async (goalId?: string) => {
+    await deleteGoal(goalId);
+  }, [deleteGoal]);
 
   const restartGoal = useCallback(async (goalId?: string) => {
     const activeGoalId = goalId ?? selectedGoalIdRef.current;
@@ -635,6 +647,7 @@ export function GoalProvider({
     markDay,
     undoDay,
     undoToday,
+    deleteGoal,
     resetGoal,
     restartGoal,
     updateGoal,
@@ -652,6 +665,7 @@ export function GoalProvider({
     markDay,
     undoDay,
     undoToday,
+    deleteGoal,
     resetGoal,
     restartGoal,
     updateGoal,

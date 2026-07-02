@@ -237,7 +237,119 @@ describe('GoalStore', () => {
     expect(storeRef?.goals[1]?.completedDays).toBe(1);
   });
 
-  it('deletes selected goal and falls back to another goal as true focus when needed', async () => {
+  it('deletes a non-selected non-focus goal without changing selected or true focus', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 7 });
+      await storeRef?.createGoal({ title: 'Lift', totalDays: 7 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+    const secondGoalId = storeRef?.goals[1]?.id;
+    const thirdGoalId = storeRef?.goals[2]?.id ?? null;
+
+    let result = false;
+    await act(async () => {
+      if (secondGoalId) {
+        result = (await storeRef?.deleteGoal(secondGoalId)) ?? false;
+      }
+    });
+
+    expect(result).toBe(true);
+    expect(storeRef?.goals.map((goal) => goal.title)).toEqual(['Read', 'Lift']);
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+    expect(storeRef?.selectedGoalId).toBe(thirdGoalId);
+  });
+
+  it('deletes the selected non-focus goal and falls back to true focus selection', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 7 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id ?? null;
+
+    let result = false;
+    await act(async () => {
+      result = (await storeRef?.deleteGoal()) ?? false;
+    });
+
+    expect(result).toBe(true);
+    expect(storeRef?.goals).toHaveLength(1);
+    expect(storeRef?.goal?.title).toBe('Read');
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+    expect(storeRef?.selectedGoalId).toBe(firstGoalId);
+  });
+
+  it('does not delete the true focus goal', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+      await storeRef?.createGoal({ title: 'Run', totalDays: 7 });
+    });
+
+    const firstGoalId = storeRef?.goals[0]?.id;
+
+    jest.clearAllMocks();
+
+    let result = true;
+    await act(async () => {
+      if (firstGoalId) {
+        result = (await storeRef?.deleteGoal(firstGoalId)) ?? true;
+      }
+    });
+
+    expect(result).toBe(false);
+    expect(storeRef?.goals.map((goal) => goal.title)).toEqual(['Read', 'Run']);
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('does not delete the only goal because it is true focus', async () => {
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({ title: 'Read', totalDays: 7 });
+    });
+
+    const onlyGoalId = storeRef?.goal?.id;
+
+    jest.clearAllMocks();
+
+    let result = true;
+    await act(async () => {
+      if (onlyGoalId) {
+        result = (await storeRef?.deleteGoal(onlyGoalId)) ?? true;
+      }
+    });
+
+    expect(result).toBe(false);
+    expect(storeRef?.goals).toHaveLength(1);
+    expect(storeRef?.goal?.title).toBe('Read');
+    expect(storeRef?.trueFocusGoalId).toBe(onlyGoalId);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('does not persist when deleting an unknown goal ID', async () => {
     let storeRef: StoreRef = null;
     renderWithStore((store) => {
       storeRef = store;
@@ -253,13 +365,19 @@ describe('GoalStore', () => {
       storeRef?.setSelectedGoal(firstGoalId);
     });
 
+    jest.clearAllMocks();
+
+    let result = true;
     await act(async () => {
-      await storeRef?.resetGoal();
+      result = (await storeRef?.deleteGoal('missing-goal')) ?? true;
     });
 
-    expect(storeRef?.goals).toHaveLength(1);
-    expect(storeRef?.goal?.title).toBe('Run');
-    expect(storeRef?.trueFocusGoalId).toBe(storeRef?.goal?.id ?? null);
+    expect(result).toBe(false);
+    expect(storeRef?.goals.map((goal) => goal.title)).toEqual(['Read', 'Run']);
+    expect(storeRef?.trueFocusGoalId).toBe(firstGoalId);
+    expect(storeRef?.selectedGoalId).toBe(firstGoalId);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
   });
 
   it('migrates legacy single-goal storage into the new structure', async () => {

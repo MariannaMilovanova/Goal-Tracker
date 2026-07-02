@@ -1,14 +1,8 @@
 import React, { useMemo } from 'react';
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 import { PrimaryButton } from '../components/PrimaryButton';
 import { MAX_GOALS } from '../store/goalConfig';
@@ -22,13 +16,16 @@ function GoalCard({
   isSelected,
   onOpen,
   onMakeTrueFocus,
+  onDelete,
 }: {
   goal: Goal;
   isTrueFocus: boolean;
   isSelected: boolean;
   onOpen: () => void;
   onMakeTrueFocus: () => void;
+  onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const streak = getGoalStreak(goal);
   const progress = goal.totalDays > 0 ? goal.completedDays / goal.totalDays : 0;
 
@@ -41,18 +38,34 @@ function GoalCard({
       {isTrueFocus ? (
         <View style={styles.cardHeader}>
           <View style={styles.focusBadge}>
-            <Text style={styles.focusBadgeText}>🔥 True Focus</Text>
+            <Text style={styles.focusBadgeText}>{`🔥 ${t('goals.trueFocus')}`}</Text>
           </View>
         </View>
       ) : null}
 
-      <Text style={styles.goalTitle}>{goal.title}</Text>
+      <View style={styles.goalTitleRow}>
+        <Text style={styles.goalTitle}>{goal.title}</Text>
+        {!isTrueFocus ? (
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            style={styles.iconAction}
+            accessibilityRole="button"
+            accessibilityLabel={t('goals.deleteGoalAccessibility', { title: goal.title })}
+          >
+            <Ionicons name="trash-outline" size={18} color="#B42318" />
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.metaText}>
-        {`${goal.completedDays} / ${goal.totalDays} days completed`}
+        {t('goals.daysCompleted', {
+          completed: goal.completedDays,
+          total: goal.totalDays,
+        })}
       </Text>
-      <Text style={styles.metaText}>
-        {`${streak} day${streak === 1 ? '' : 's'} streak`}
-      </Text>
+      <Text style={styles.metaText}>{t('goals.streak', { count: streak })}</Text>
 
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.max(4, progress * 100)}%` }]} />
@@ -67,7 +80,7 @@ function GoalCard({
           style={styles.secondaryAction}
           accessibilityRole="button"
         >
-          <Text style={styles.secondaryActionText}>Make True Focus</Text>
+          <Text style={styles.secondaryActionText}>{t('goals.makeTrueFocus')}</Text>
         </Pressable>
       ) : null}
     </Pressable>
@@ -75,6 +88,7 @@ function GoalCard({
 }
 
 export function GoalsListScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const {
     goals,
@@ -82,6 +96,7 @@ export function GoalsListScreen() {
     selectedGoalId,
     setSelectedGoal,
     setTrueFocusGoal,
+    deleteGoal,
     canCreateMoreGoals,
   } = useGoalStore();
 
@@ -106,15 +121,36 @@ export function GoalsListScreen() {
     await setTrueFocusGoal(goalId);
   };
 
+  const handleDeleteGoal = (goal: Goal) => {
+    Alert.alert(
+      t('goals.deleteGoalTitle'),
+      t('goals.deleteGoalDescription', { title: goal.title }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => {
+            void deleteGoal(goal.id);
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Back">
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityLabel={t('common.back')}
+          >
             <Ionicons name="chevron-back" size={18} color="#4A4A4A" />
-            <Text style={styles.backText}>Back</Text>
+            <Text style={styles.backText}>{t('common.back')}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Goals</Text>
+          <Text style={styles.headerTitle}>{t('goals.title')}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -129,17 +165,18 @@ export function GoalsListScreen() {
               onMakeTrueFocus={() => {
                 void handleMakeTrueFocus(goal.id);
               }}
+              onDelete={() => handleDeleteGoal(goal)}
             />
           ))}
 
           <View style={styles.createSection}>
             <PrimaryButton
-              label="Create goal"
+              label={t('common.createGoal')}
               onPress={() => router.push('/new-goal')}
               disabled={!canCreateMoreGoals}
             />
             {!canCreateMoreGoals ? (
-              <Text style={styles.limitText}>{`You can track up to ${MAX_GOALS} goals.`}</Text>
+              <Text style={styles.limitText}>{t('goals.limit', { count: MAX_GOALS })}</Text>
             ) : null}
           </View>
         </ScrollView>
@@ -217,11 +254,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#8D4C15',
   },
+  goalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
   goalTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '700',
     color: '#111111',
-    marginBottom: 8,
+  },
+  iconAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF4F2',
   },
   metaText: {
     fontSize: 14,

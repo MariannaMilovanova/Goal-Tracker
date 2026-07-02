@@ -93,7 +93,7 @@ function buildCalendarCells(monthDate: Date) {
 export function EditGoalScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { goal, resetGoal, updateGoal } = useGoalStore();
+  const { goal, trueFocusGoalId, deleteGoal, updateGoal } = useGoalStore();
   const [title, setTitle] = useState(goal?.title ?? '');
   const [totalDays, setTotalDays] = useState(goal ? String(goal.totalDays) : '');
   const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>(
@@ -145,6 +145,7 @@ export function EditGoalScreen() {
 
   const canSubmit =
     title.trim().length > 0 && totalDaysValue > 0 && trackedWeekdays.length > 0 && startDateIsValid;
+  const isTrueFocusGoal = !!goal && goal.id === trueFocusGoalId;
   if (!goal) {
     return null;
   }
@@ -190,15 +191,21 @@ export function EditGoalScreen() {
     router.back();
   };
 
-  const handleReset = () => {
-    Alert.alert(t('editGoal.resetGoalTitle'), t('editGoal.resetGoalDescription'), [
+  const handleDelete = () => {
+    if (isTrueFocusGoal) {
+      return;
+    }
+
+    Alert.alert(t('editGoal.deleteGoalTitle'), t('editGoal.deleteGoalDescription'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
-        text: t('common.reset'),
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
-          await resetGoal();
-          router.replace('/');
+          const didDelete = await deleteGoal(goal.id);
+          if (didDelete) {
+            router.replace('/');
+          }
         },
       },
     ]);
@@ -317,14 +324,18 @@ export function EditGoalScreen() {
             ) : null}
 
             <View style={styles.footer}>
-              <Pressable
-                onPress={handleReset}
-                accessibilityRole="button"
-                style={styles.resetButton}
-              >
-                <Ionicons name="refresh-outline" size={16} color="#B42318" />
-                <Text style={styles.resetText}>{t('editGoal.resetGoal')}</Text>
-              </Pressable>
+              {!isTrueFocusGoal ? (
+                <Pressable
+                  onPress={handleDelete}
+                  accessibilityRole="button"
+                  style={styles.deleteButton}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#B42318" />
+                  <Text style={styles.deleteText}>{t('editGoal.deleteGoal')}</Text>
+                </Pressable>
+              ) : (
+                <View />
+              )}
               <View style={styles.footerPrimary}>
                 <PrimaryButton
                   label={t('common.save')}
@@ -548,7 +559,7 @@ const styles = StyleSheet.create({
   footerPrimary: {
     minWidth: 120,
   },
-  resetButton: {
+  deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -559,7 +570,7 @@ const styles = StyleSheet.create({
     borderColor: '#E7B3AD',
     backgroundColor: '#FFF4F2',
   },
-  resetText: {
+  deleteText: {
     color: '#B42318',
     fontSize: 15,
     fontWeight: '700',
