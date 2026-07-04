@@ -18,6 +18,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
+import {
+  DEFAULT_MULTIPLE_DAILY_TARGET,
+  MAX_DAILY_TARGET,
+  MIN_MULTIPLE_DAILY_TARGET,
+} from '../store/goalConfig';
+import { GoalType } from '../store/goalTypes';
 import { addDaysToDateString, getLocalDateString } from '../utils/date';
 
 const WEEKDAY_OPTIONS = [
@@ -96,6 +102,10 @@ export function EditGoalScreen() {
   const { goal, trueFocusGoalId, deleteGoal, updateGoal } = useGoalStore();
   const [title, setTitle] = useState(goal?.title ?? '');
   const [totalDays, setTotalDays] = useState(goal ? String(goal.totalDays) : '');
+  const [goalType, setGoalType] = useState<GoalType>(goal?.type ?? 'oncePerDay');
+  const [dailyTarget, setDailyTarget] = useState(
+    String(goal?.type === 'multipleTimesPerDay' ? goal.dailyTarget : DEFAULT_MULTIPLE_DAILY_TARGET),
+  );
   const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>(
     goal?.trackedWeekdays ?? [0, 1, 2, 3, 4, 5, 6],
   );
@@ -117,6 +127,16 @@ export function EditGoalScreen() {
     }
     return parsed;
   }, [totalDays]);
+  const dailyTargetValue = useMemo(() => {
+    const parsed = Number(dailyTarget);
+    if (Number.isNaN(parsed)) {
+      return 0;
+    }
+    return Math.floor(parsed);
+  }, [dailyTarget]);
+  const dailyTargetIsValid =
+    goalType === 'oncePerDay' ||
+    (dailyTargetValue >= MIN_MULTIPLE_DAILY_TARGET && dailyTargetValue <= MAX_DAILY_TARGET);
 
   const today = getLocalDateString();
   const latestAllowedStartDate =
@@ -144,7 +164,11 @@ export function EditGoalScreen() {
   const startDateIsValid = startDate <= latestAllowedStartDate;
 
   const canSubmit =
-    title.trim().length > 0 && totalDaysValue > 0 && trackedWeekdays.length > 0 && startDateIsValid;
+    title.trim().length > 0 &&
+    totalDaysValue > 0 &&
+    trackedWeekdays.length > 0 &&
+    startDateIsValid &&
+    dailyTargetIsValid;
   const isTrueFocusGoal = !!goal && goal.id === trueFocusGoalId;
   if (!goal) {
     return null;
@@ -157,6 +181,17 @@ export function EditGoalScreen() {
   const handleTotalDaysChange = (value: string) => {
     const sanitized = value.replace(/[^0-9]/g, '');
     setTotalDays(sanitized);
+  };
+
+  const handleGoalTypeChange = (value: GoalType) => {
+    setGoalType(value);
+    if (value === 'multipleTimesPerDay' && dailyTarget.length === 0) {
+      setDailyTarget(String(DEFAULT_MULTIPLE_DAILY_TARGET));
+    }
+  };
+
+  const handleDailyTargetChange = (value: string) => {
+    setDailyTarget(value.replace(/[^0-9]/g, ''));
   };
 
   const toggleTrackedWeekday = (weekday: number) => {
@@ -178,6 +213,8 @@ export function EditGoalScreen() {
       totalDays: totalDaysValue,
       trackedWeekdays,
       createdAt: toLocalNoonISOString(startDate),
+      type: goalType,
+      dailyTarget: goalType === 'multipleTimesPerDay' ? dailyTargetValue : 1,
     };
 
     const updated = await updateGoal(updates);
@@ -275,6 +312,58 @@ export function EditGoalScreen() {
               returnKeyType="done"
               accessibilityLabel={t('editGoal.totalDays')}
             />
+
+            <Text style={styles.label}>{t('goalType.label')}</Text>
+            <View style={styles.segmentedControl}>
+              {(['oncePerDay', 'multipleTimesPerDay'] as GoalType[]).map((typeOption) => {
+                const selected = goalType === typeOption;
+                return (
+                  <Pressable
+                    key={typeOption}
+                    onPress={() => handleGoalTypeChange(typeOption)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[styles.segmentButton, selected ? styles.segmentButtonSelected : null]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        selected ? styles.segmentButtonTextSelected : null,
+                      ]}
+                    >
+                      {t(
+                        typeOption === 'oncePerDay'
+                          ? 'goalType.oncePerDay'
+                          : 'goalType.multipleTimesPerDay',
+                      )}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {goalType === 'multipleTimesPerDay' ? (
+              <>
+                <Text style={styles.label}>{t('goalType.timesPerDay')}</Text>
+                <TextInput
+                  placeholder={String(DEFAULT_MULTIPLE_DAILY_TARGET)}
+                  value={dailyTarget}
+                  onChangeText={handleDailyTargetChange}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  accessibilityLabel={t('goalType.timesPerDay')}
+                />
+                {!dailyTargetIsValid ? (
+                  <Text style={styles.errorText}>
+                    {t('goalType.timesPerDayValidation', {
+                      min: MIN_MULTIPLE_DAILY_TARGET,
+                      max: MAX_DAILY_TARGET,
+                    })}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
 
             <Text style={styles.label}>{t('editGoal.startDate')}</Text>
             <Pressable style={styles.dateField} onPress={openCalendar} accessibilityRole="button">
@@ -494,6 +583,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 20,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 20,
+    backgroundColor: '#F6F6F6',
+  },
+  segmentButton: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+    paddingHorizontal: 8,
+  },
+  segmentButtonSelected: {
+    backgroundColor: '#111111',
+  },
+  segmentButtonText: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  segmentButtonTextSelected: {
+    color: '#FFFFFF',
   },
   dateField: {
     borderWidth: 1,

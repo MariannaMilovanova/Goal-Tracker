@@ -17,7 +17,13 @@ import { useRouter } from 'expo-router';
 import { DurationPicker } from '../components/DurationPicker';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useGoalStore } from '../store/goalStore';
-import { MAX_GOALS } from '../store/goalConfig';
+import {
+  DEFAULT_MULTIPLE_DAILY_TARGET,
+  MAX_DAILY_TARGET,
+  MAX_GOALS,
+  MIN_MULTIPLE_DAILY_TARGET,
+} from '../store/goalConfig';
+import { GoalType } from '../store/goalTypes';
 
 const PRESET_DURATIONS = [7, 30, 100];
 const WEEKDAY_OPTIONS = [
@@ -38,6 +44,8 @@ export function OnboardingScreen() {
   const [selectedDays, setSelectedDays] = useState<number | null>(PRESET_DURATIONS[0]);
   const [customDays, setCustomDays] = useState('');
   const [trackedWeekdays, setTrackedWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [goalType, setGoalType] = useState<GoalType>('oncePerDay');
+  const [dailyTarget, setDailyTarget] = useState(String(DEFAULT_MULTIPLE_DAILY_TARGET));
 
   const totalDays = useMemo(() => {
     const custom = Number(customDays);
@@ -46,11 +54,22 @@ export function OnboardingScreen() {
     }
     return selectedDays ?? 0;
   }, [customDays, selectedDays]);
+  const dailyTargetValue = useMemo(() => {
+    const parsed = Number(dailyTarget);
+    if (Number.isNaN(parsed)) {
+      return 0;
+    }
+    return Math.floor(parsed);
+  }, [dailyTarget]);
+  const dailyTargetIsValid =
+    goalType === 'oncePerDay' ||
+    (dailyTargetValue >= MIN_MULTIPLE_DAILY_TARGET && dailyTargetValue <= MAX_DAILY_TARGET);
 
   const canSubmit =
     title.trim().length > 0 &&
     totalDays > 0 &&
     trackedWeekdays.length > 0 &&
+    dailyTargetIsValid &&
     goals.length < MAX_GOALS;
 
   const handleSelectPreset = (value: number) => {
@@ -68,6 +87,17 @@ export function OnboardingScreen() {
     }
   };
 
+  const handleGoalTypeChange = (value: GoalType) => {
+    setGoalType(value);
+    if (value === 'multipleTimesPerDay' && dailyTarget.length === 0) {
+      setDailyTarget(String(DEFAULT_MULTIPLE_DAILY_TARGET));
+    }
+  };
+
+  const handleDailyTargetChange = (value: string) => {
+    setDailyTarget(value.replace(/[^0-9]/g, ''));
+  };
+
   const handleCreateGoal = async () => {
     if (!canSubmit) {
       return;
@@ -76,6 +106,8 @@ export function OnboardingScreen() {
       title: title.trim(),
       totalDays,
       trackedWeekdays,
+      type: goalType,
+      dailyTarget: goalType === 'multipleTimesPerDay' ? dailyTargetValue : 1,
     });
     if (!created) {
       Alert.alert('Goal limit reached', 'You can track up to 10 goals.');
@@ -126,6 +158,58 @@ export function OnboardingScreen() {
               onSelect={handleSelectPreset}
               onCustomChange={handleCustomChange}
             />
+
+            <Text style={styles.label}>{t('goalType.label')}</Text>
+            <View style={styles.segmentedControl}>
+              {(['oncePerDay', 'multipleTimesPerDay'] as GoalType[]).map((typeOption) => {
+                const selected = goalType === typeOption;
+                return (
+                  <Pressable
+                    key={typeOption}
+                    onPress={() => handleGoalTypeChange(typeOption)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[styles.segmentButton, selected ? styles.segmentButtonSelected : null]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentButtonText,
+                        selected ? styles.segmentButtonTextSelected : null,
+                      ]}
+                    >
+                      {t(
+                        typeOption === 'oncePerDay'
+                          ? 'goalType.oncePerDay'
+                          : 'goalType.multipleTimesPerDay',
+                      )}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {goalType === 'multipleTimesPerDay' ? (
+              <>
+                <Text style={styles.label}>{t('goalType.timesPerDay')}</Text>
+                <TextInput
+                  placeholder={String(DEFAULT_MULTIPLE_DAILY_TARGET)}
+                  value={dailyTarget}
+                  onChangeText={handleDailyTargetChange}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  accessibilityLabel={t('goalType.timesPerDay')}
+                />
+                {!dailyTargetIsValid ? (
+                  <Text style={styles.errorText}>
+                    {t('goalType.timesPerDayValidation', {
+                      min: MIN_MULTIPLE_DAILY_TARGET,
+                      max: MAX_DAILY_TARGET,
+                    })}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
 
             <Text style={styles.label}>{t('onboarding.trackOn')}</Text>
             <View style={styles.weekdayRow}>
@@ -222,6 +306,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 20,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 20,
+    backgroundColor: '#F6F6F6',
+  },
+  segmentButton: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+    paddingHorizontal: 8,
+  },
+  segmentButtonSelected: {
+    backgroundColor: '#111111',
+  },
+  segmentButtonText: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  segmentButtonTextSelected: {
+    color: '#FFFFFF',
   },
   weekdayRow: {
     flexDirection: 'row',

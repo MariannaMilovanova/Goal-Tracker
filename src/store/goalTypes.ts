@@ -1,8 +1,15 @@
 export type GoalDayState = 'completed' | 'skipped' | 'off';
 
+export type GoalType = 'oncePerDay' | 'multipleTimesPerDay';
+
+export type GoalRecord = {
+  count: number;
+};
+
 export type Goal = {
   id: string;
   title: string;
+  type: GoalType;
   totalDays: number;
   completedDays: number;
   timeline: GoalDayState[];
@@ -11,6 +18,8 @@ export type Goal = {
   createdAt: string;
   updatedAt: string;
   accentColor?: string;
+  dailyTarget: number;
+  records: Record<string, GoalRecord>;
 };
 
 export type GoalsState = {
@@ -23,6 +32,8 @@ export type GoalInput = {
   totalDays: number;
   trackedWeekdays?: number[];
   accentColor?: string;
+  type?: GoalType;
+  dailyTarget?: number;
 };
 
 export type GoalUpdate = {
@@ -32,4 +43,8 @@ export type GoalUpdate = {
   lastCompletedDate?: string | null;
   createdAt?: string;
   accentColor?: string;
+  type?: GoalType;
+  dailyTarget?: number;
 };
+
+export type TrackOneResult = 'incremented' | 'completed' | false;

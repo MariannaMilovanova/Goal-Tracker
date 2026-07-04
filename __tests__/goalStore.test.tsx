@@ -3,6 +3,7 @@ import React from 'react';
 import { act, render } from '@testing-library/react-native';
 
 import { GoalProvider, useGoalStore } from '../src/store/goalStore';
+import { getGoalStreak } from '../src/utils/goalMetrics';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve(null)),
@@ -29,6 +30,10 @@ function renderWithStore(onReady: (store: StoreRef) => void, autoLoad = false) {
 describe('GoalStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('creates first goal as true focus and selected goal', async () => {
@@ -158,6 +163,83 @@ describe('GoalStore', () => {
 
     expect(storeRef?.goals.find((goal) => goal.id === firstGoalId)?.completedDays).toBe(1);
     expect(storeRef?.goals[1]?.completedDays).toBe(0);
+  });
+
+  it('tracks multiple-times-per-day progress without completing the day until target is reached', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
+
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({
+        title: 'Meaningful Eating',
+        totalDays: 3,
+        type: 'multipleTimesPerDay',
+        dailyTarget: 3,
+      });
+    });
+
+    await act(async () => {
+      expect(await storeRef?.trackOneToday()).toBe('incremented');
+    });
+
+    expect(storeRef?.goal?.records['2026-03-14']).toEqual({ count: 1 });
+    expect(storeRef?.goal?.completedDays).toBe(0);
+    expect(storeRef?.goal ? getGoalStreak(storeRef.goal) : 0).toBe(0);
+
+    await act(async () => {
+      expect(await storeRef?.trackOneToday()).toBe('incremented');
+      expect(await storeRef?.trackOneToday()).toBe('completed');
+    });
+
+    expect(storeRef?.goal?.records['2026-03-14']).toEqual({ count: 3 });
+    expect(storeRef?.goal?.completedDays).toBe(1);
+    expect(storeRef?.goal?.timeline).toEqual(['completed']);
+    expect(storeRef?.goal ? getGoalStreak(storeRef.goal) : 0).toBe(1);
+
+    await act(async () => {
+      expect(await storeRef?.trackOneToday()).toBe(false);
+    });
+
+    await act(async () => {
+      expect(await storeRef?.undoTodayProgress()).toBe(true);
+    });
+
+    expect(storeRef?.goal?.records['2026-03-14']).toEqual({ count: 2 });
+    expect(storeRef?.goal?.completedDays).toBe(0);
+    expect(storeRef?.goal?.timeline).toEqual([]);
+  });
+
+  it('marks a past multiple-times-per-day date by setting the count to target', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-14T15:00:00.000Z'));
+
+    let storeRef: StoreRef = null;
+    renderWithStore((store) => {
+      storeRef = store;
+    });
+
+    await act(async () => {
+      await storeRef?.createGoal({
+        title: 'Water',
+        totalDays: 5,
+        type: 'multipleTimesPerDay',
+        dailyTarget: 4,
+      });
+      await storeRef?.updateGoal({ createdAt: '2026-03-10T12:00:00.000Z' });
+    });
+
+    await act(async () => {
+      expect(await storeRef?.markDay('2026-03-12')).toBe(true);
+    });
+
+    expect(storeRef?.goal?.records['2026-03-12']).toEqual({ count: 4 });
+    expect(storeRef?.goal?.completedDays).toBe(1);
+    expect(storeRef?.goal?.timeline[2]).toBe('completed');
   });
 
   it('allows marking a past day on a specific goal without affecting another goal', async () => {

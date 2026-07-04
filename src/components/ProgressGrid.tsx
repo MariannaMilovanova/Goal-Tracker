@@ -12,9 +12,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { addDaysToDateString, getLocalDateString, isTrackedOnDate } from '../utils/date';
-import { GoalDayState } from '../store/goalTypes';
+import { GoalDayState, GoalRecord, GoalType } from '../store/goalTypes';
+import { getRecordCount } from '../utils/goalProgress';
 
-export type ProgressGridCellState = GoalDayState | 'future' | 'past' | 'today';
+export type ProgressGridCellState = GoalDayState | 'future' | 'past' | 'today' | 'partial';
 
 export type ProgressGridCellPressPayload = {
   date: string;
@@ -31,6 +32,9 @@ type ProgressGridProps = {
   celebrationToken?: number;
   startDate?: string;
   trackedWeekdays?: number[];
+  goalType?: GoalType;
+  dailyTarget?: number;
+  records?: Record<string, GoalRecord>;
   onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 };
 
@@ -68,6 +72,9 @@ function GridCell({
   index,
   date,
   isTracked,
+  isCurrentDay,
+  partialCount,
+  partialTarget,
   onCellPress,
 }: {
   state: ProgressGridCellState;
@@ -77,6 +84,9 @@ function GridCell({
   index: number;
   date: string;
   isTracked: boolean;
+  isCurrentDay: boolean;
+  partialCount?: number;
+  partialTarget?: number;
   onCellPress?: (payload: ProgressGridCellPressPayload) => void;
 }) {
   const { t } = useTranslation();
@@ -103,6 +113,11 @@ function GridCell({
   const isPast = state === 'past';
   const isOff = state === 'off';
   const isToday = state === 'today';
+  const isPartial = state === 'partial';
+  const partialRatio =
+    isPartial && partialCount && partialTarget
+      ? Math.min(1, Math.max(0, partialCount / partialTarget))
+      : 0;
   const frozenScaleBoost = isFrozen ? 1.08 : 1;
   const completedScaleBoost = isComplete ? 1.06 : 1;
 
@@ -231,7 +246,7 @@ function GridCell({
         isComplete ? styles.cellComplete : null,
         isPast ? styles.cellPast : null,
         isOff ? styles.cellOff : null,
-        isToday ? styles.cellToday : null,
+        isToday || (isPartial && isCurrentDay) ? styles.cellToday : null,
         !isComplete && !isPast && !isOff && !isToday ? styles.cellInactive : null,
         animatedStyle,
       ]}
@@ -239,18 +254,27 @@ function GridCell({
       <Pressable
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel={t('grid.accessibilityDay', { date })}
+        accessibilityLabel={
+          isPartial && partialCount && partialTarget
+            ? t('grid.accessibilityPartialDay', {
+                date,
+                count: partialCount,
+                target: partialTarget,
+              })
+            : t('grid.accessibilityDay', { date })
+        }
         style={styles.cellPressable}
       >
         <View
           style={[
             styles.fill,
             isComplete ? styles.fillInactive : null,
+            isPartial ? styles.fillInactive : null,
             isToday ? styles.todayFill : null,
             !isComplete && !isPast && !isOff && !isToday ? styles.fillInactive : null,
           ]}
         >
-          {isComplete || isPast || isOff ? (
+          {isComplete || isPast || isOff || isPartial ? (
             <>
               {isComplete ? (
                 <>
@@ -280,6 +304,15 @@ function GridCell({
                     />
                   </Animated.View>
                   <Animated.Text style={[styles.cellFire, fireStyle]}>🔥</Animated.Text>
+                </>
+              ) : isPartial ? (
+                <>
+                  <View style={styles.partialBase} />
+                  <View style={[styles.partialFill, { width: `${partialRatio * 100}%` }]} />
+                  {partialCount && partialTarget ? (
+                    <Text style={styles.partialLabel}>{`${partialCount}/${partialTarget}`}</Text>
+                  ) : null}
+                  {isCurrentDay ? <View style={styles.partialTodayOutline} /> : null}
                 </>
               ) : (
                 <>
@@ -312,6 +345,9 @@ export function ProgressGrid({
   celebrationToken,
   startDate,
   trackedWeekdays = [],
+  goalType = 'oncePerDay',
+  dailyTarget = 1,
+  records = {},
   onCellPress,
 }: ProgressGridProps) {
   const { i18n } = useTranslation();
@@ -345,7 +381,10 @@ export function ProgressGrid({
         state: ProgressGridCellState;
         date: string;
         isTracked: boolean;
+        isCurrentDay: boolean;
         isHighlighted: boolean;
+        partialCount?: number;
+        partialTarget?: number;
       }>;
     }> = [];
     const sectionIndexByMonth = new Map<string, number>();
@@ -371,28 +410,43 @@ export function ProgressGrid({
       const timelineState = timeline[dayIndex];
       const dateString = addDaysToDateString(startDateString, dayIndex);
       const isTracked = isTrackedOnDate(dateString, trackedWeekdays);
+      const isCurrentDay = dayIndex === elapsedDays - 1;
+      const recordCount =
+        goalType === 'multipleTimesPerDay'
+          ? getRecordCount({ records, dailyTarget }, dateString)
+          : 0;
+      const isPartiallyComplete =
+        goalType === 'multipleTimesPerDay' &&
+        recordCount > 0 &&
+        recordCount < dailyTarget &&
+        dayIndex < elapsedDays;
       const state: ProgressGridCellState =
-        timelineState === 'skipped'
-          ? 'skipped'
-          : timelineState === 'completed'
-            ? 'completed'
-            : timelineState === 'off'
-              ? 'off'
-              : dayIndex === elapsedDays - 1
-                ? 'today'
-                : !isTracked
-                  ? 'off'
-                  : dayIndex < elapsedDays
-                    ? 'past'
-                    : 'future';
+        timelineState === 'completed' || recordCount >= dailyTarget
+          ? 'completed'
+          : isPartiallyComplete
+            ? 'partial'
+            : timelineState === 'skipped'
+              ? 'skipped'
+              : timelineState === 'off'
+                ? 'off'
+                : isCurrentDay
+                  ? 'today'
+                  : !isTracked
+                    ? 'off'
+                    : dayIndex < elapsedDays
+                      ? 'past'
+                      : 'future';
 
       sections[sectionIndex].days.push({
         key: `day-${dayIndex}`,
         dayIndex,
         date: dateString,
         isTracked,
+        isCurrentDay,
         state,
         isHighlighted: highlightIndex === dayIndex,
+        partialCount: isPartiallyComplete ? recordCount : undefined,
+        partialTarget: isPartiallyComplete ? dailyTarget : undefined,
       });
     }
 
@@ -410,7 +464,18 @@ export function ProgressGrid({
     });
 
     return sections;
-  }, [elapsedDays, highlightIndex, monthFormatter, startDate, timeline, total, trackedWeekdays]);
+  }, [
+    dailyTarget,
+    elapsedDays,
+    goalType,
+    highlightIndex,
+    monthFormatter,
+    records,
+    startDate,
+    timeline,
+    total,
+    trackedWeekdays,
+  ]);
 
   return (
     <View style={styles.wrapper}>
@@ -431,10 +496,13 @@ export function ProgressGrid({
                 index={day.dayIndex}
                 date={day.date}
                 isTracked={day.isTracked}
+                isCurrentDay={day.isCurrentDay}
                 state={day.state}
                 isHighlighted={day.isHighlighted}
                 isCelebrating={celebrationCellIndex === day.dayIndex}
                 celebrationToken={celebrationToken}
+                partialCount={day.partialCount}
+                partialTarget={day.partialTarget}
                 onCellPress={onCellPress}
               />
             ))}
@@ -578,6 +646,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E4E4E4',
     borderRadius: CELL_RADIUS,
+  },
+  partialBase: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#E6E6E6',
+    borderWidth: 1,
+    borderColor: '#D5D5D5',
+    borderRadius: CELL_RADIUS,
+  },
+  partialFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#28C76F',
+    borderTopLeftRadius: CELL_RADIUS,
+    borderBottomLeftRadius: CELL_RADIUS,
+  },
+  partialTodayOutline: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    borderRadius: CELL_RADIUS,
+  },
+  partialLabel: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '50%',
+    marginTop: -7,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    color: '#145A32',
   },
   todayFill: {
     ...StyleSheet.absoluteFillObject,

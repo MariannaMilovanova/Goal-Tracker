@@ -1,5 +1,17 @@
 import { Goal, GoalsState, GoalDayState } from '../store/goalTypes';
-import { normalizeTrackedWeekdays } from './date';
+import {
+  getGoalDailyTarget,
+  normalizeDailyTarget,
+  normalizeGoalRecords,
+  normalizeGoalType,
+  setRecordCount,
+} from './goalProgress';
+import {
+  addDaysToDateString,
+  getLocalDateString,
+  isTrackedOnDate,
+  normalizeTrackedWeekdays,
+} from './date';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_GOALS = 10;
@@ -33,7 +45,10 @@ function normalizeTimeline(
 
   let normalizedCompleted = 0;
   return {
-    completedDays: timeline.reduce((count, entry) => (entry === 'completed' ? count + 1 : count), 0),
+    completedDays: timeline.reduce(
+      (count, entry) => (entry === 'completed' ? count + 1 : count),
+      0,
+    ),
     timeline: timeline.map((entry) => {
       if (entry === 'completed' && normalizedCompleted < totalDays) {
         normalizedCompleted += 1;
@@ -45,6 +60,33 @@ function normalizeTimeline(
       return 'skipped';
     }),
   };
+}
+
+function countCompletedDays(timeline: GoalDayState[]): number {
+  return timeline.reduce((count, entry) => (entry === 'completed' ? count + 1 : count), 0);
+}
+
+function getLocalDateFromIsoString(value: string): string | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return getLocalDateString(parsed);
+}
+
+function getFallbackStateForDate(date: string, trackedWeekdays: number[]): GoalDayState {
+  return isTrackedOnDate(date, trackedWeekdays) ? 'skipped' : 'off';
+}
+
+function getLastCompletedDateFromTimeline(
+  timeline: GoalDayState[],
+  startDate: string,
+): string | null {
+  const lastCompletedIndex = timeline.lastIndexOf('completed');
+  if (lastCompletedIndex < 0) {
+    return null;
+  }
+  return addDaysToDateString(startDate, lastCompletedIndex);
 }
 
 export function normalizeGoal(
@@ -62,11 +104,13 @@ export function normalizeGoal(
   const completedDays = isFiniteNumber(candidate.completedDays)
     ? Math.floor(candidate.completedDays)
     : 0;
+  const type = normalizeGoalType(candidate.type);
+  const dailyTarget = normalizeDailyTarget(type, candidate.dailyTarget);
   const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : '';
   const updatedAt =
     typeof candidate.updatedAt === 'string' && candidate.updatedAt.length > 0
       ? candidate.updatedAt
-      : options?.fallbackUpdatedAt ?? createdAt;
+      : (options?.fallbackUpdatedAt ?? createdAt);
   const accentColor = typeof candidate.accentColor === 'string' ? candidate.accentColor : undefined;
   const trackedWeekdays = normalizeTrackedWeekdays(candidate.trackedWeekdays);
   const lastCompletedDate =
@@ -85,18 +129,74 @@ export function normalizeGoal(
   }
 
   const normalizedTimeline = normalizeTimeline(candidate.timeline, totalDays, completedDays);
+  const startDate = getLocalDateFromIsoString(createdAt) ?? getLocalDateString();
+  let timeline = normalizedTimeline.timeline;
+  let records = normalizeGoalRecords(candidate.records, dailyTarget);
+
+  if (type === 'multipleTimesPerDay') {
+    let recordsGoal = {
+      id,
+      title,
+      type,
+      totalDays,
+      completedDays: normalizedTimeline.completedDays,
+      timeline,
+      trackedWeekdays,
+      lastCompletedDate,
+      createdAt,
+      updatedAt,
+      accentColor,
+      dailyTarget,
+      records,
+    };
+
+    timeline.forEach((entry, index) => {
+      if (entry !== 'completed') {
+        return;
+      }
+      const date = addDaysToDateString(startDate, index);
+      if (!records[date]) {
+        records = setRecordCount(recordsGoal, date, dailyTarget);
+        recordsGoal = {
+          ...recordsGoal,
+          records,
+        };
+      }
+    });
+
+    timeline = timeline.map((entry, index) => {
+      const date = addDaysToDateString(startDate, index);
+      const count = records[date]?.count ?? 0;
+      if (count >= getGoalDailyTarget(recordsGoal)) {
+        return 'completed';
+      }
+      if (entry === 'completed') {
+        return getFallbackStateForDate(date, trackedWeekdays);
+      }
+      return entry;
+    });
+  }
+
+  const normalizedCompletedDays = Math.min(countCompletedDays(timeline), totalDays);
+  const normalizedLastCompletedDate =
+    type === 'multipleTimesPerDay'
+      ? getLastCompletedDateFromTimeline(timeline, startDate)
+      : lastCompletedDate;
 
   return {
     id,
     title,
+    type,
     totalDays,
-    completedDays: Math.min(normalizedTimeline.completedDays, totalDays),
-    timeline: normalizedTimeline.timeline,
+    completedDays: normalizedCompletedDays,
+    timeline,
     trackedWeekdays,
-    lastCompletedDate,
+    lastCompletedDate: normalizedLastCompletedDate,
     createdAt,
     updatedAt,
     accentColor,
+    dailyTarget,
+    records,
   };
 }
 
@@ -135,7 +235,7 @@ export function normalizeGoalsState(raw: unknown): GoalsState {
     typeof candidate.trueFocusGoalId === 'string' &&
     goals.some((goal) => goal.id === candidate.trueFocusGoalId)
       ? candidate.trueFocusGoalId
-      : goals[0]?.id ?? null;
+      : (goals[0]?.id ?? null);
 
   return {
     goals,

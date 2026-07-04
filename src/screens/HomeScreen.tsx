@@ -11,6 +11,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ProgressGrid, ProgressGridCellPressPayload } from '../components/ProgressGrid';
 import { MAX_GOALS } from '../store/goalConfig';
 import { useGoalStore } from '../store/goalStore';
+import { getGoalDailyTarget, getRecordCount } from '../utils/goalProgress';
 import { getGoalStreak, getSkippedDaysCount } from '../utils/goalMetrics';
 import {
   canMarkDone,
@@ -22,7 +23,8 @@ import {
 
 export function HomeScreen() {
   const { t, i18n } = useTranslation();
-  const { goal, markDone, markDay, undoDay, restartGoal, goals } = useGoalStore();
+  const { goal, markDone, markDay, undoDay, trackOneToday, undoTodayProgress, restartGoal, goals } =
+    useGoalStore();
   const router = useRouter();
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [celebrationCellIndex, setCelebrationCellIndex] = useState<number | null>(null);
@@ -33,10 +35,7 @@ export function HomeScreen() {
   const [celebrationValues, setCelebrationValues] = useState({ from: 0, to: 0 });
   const sequenceTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const language = i18n.resolvedLanguage;
-  const skippedDays = useMemo(
-    () => (goal ? getSkippedDaysCount(goal) : 0),
-    [goal],
-  );
+  const skippedDays = useMemo(() => (goal ? getSkippedDaysCount(goal) : 0), [goal]);
   const visibleTotalDays = useMemo(
     () => (goal ? goal.totalDays + skippedDays : 0),
     [goal, skippedDays],
@@ -88,6 +87,10 @@ export function HomeScreen() {
   const streakDays = useMemo(() => {
     return goal ? getGoalStreak(goal) : 0;
   }, [goal]);
+  const isMultipleTimesGoal = goal?.type === 'multipleTimesPerDay';
+  const dailyTarget = goal ? getGoalDailyTarget(goal) : 1;
+  const todayCount = goal && isMultipleTimesGoal ? getRecordCount(goal, today) : 0;
+  const isTodayTargetReached = isMultipleTimesGoal && todayCount >= dailyTarget;
 
   const canCompleteToday = useMemo(() => {
     if (!goal) {
@@ -95,6 +98,9 @@ export function HomeScreen() {
     }
     if (goal.completedDays >= goal.totalDays) {
       return false;
+    }
+    if (goal.type === 'multipleTimesPerDay') {
+      return getRecordCount(goal, today) < getGoalDailyTarget(goal);
     }
     return canMarkDone(today, goal.lastCompletedDate);
   }, [goal, today]);
@@ -127,17 +133,17 @@ export function HomeScreen() {
     const startDate = getLocalDateString(new Date(goal.createdAt));
     const todayIndex = getDateDiffInDays(startDate, today);
     const fromValue = goal.completedDays;
-    const toValue = fromValue + 1;
+    const toValue = Math.min(goal.totalDays, fromValue + 1);
     setIsMarkingDone(true);
     sequenceTimers.current.forEach((timer) => clearTimeout(timer));
     sequenceTimers.current = [];
     setHighlightIndex(todayIndex >= 0 ? todayIndex : null);
-    setCelebrationCellIndex(todayIndex >= 0 ? todayIndex : null);
-    setCelebrationToken(Date.now());
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const didMark = await markDone();
-    if (!didMark) {
+    const didReachCompletion =
+      goal.type === 'multipleTimesPerDay' ? await trackOneToday() : await markDone();
+
+    if (!didReachCompletion) {
       setIsMarkingDone(false);
       setHighlightIndex(null);
       setCelebrationCellIndex(null);
@@ -145,6 +151,18 @@ export function HomeScreen() {
       return;
     }
 
+    if (didReachCompletion === 'incremented') {
+      sequenceTimers.current.push(
+        setTimeout(() => {
+          setHighlightIndex(null);
+          setIsMarkingDone(false);
+        }, 320),
+      );
+      return;
+    }
+
+    setCelebrationCellIndex(todayIndex >= 0 ? todayIndex : null);
+    setCelebrationToken(Date.now());
     setCelebrationValues({ from: fromValue, to: toValue });
     sequenceTimers.current.push(setTimeout(() => setDisplayCompletedDays(toValue), 160));
     sequenceTimers.current.push(setTimeout(() => setShowCelebration(true), 220));
@@ -158,6 +176,13 @@ export function HomeScreen() {
 
   const handleUndoDay = async (date: string) => {
     const didUndo = await undoDay(date);
+    if (didUndo) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleUndoTodayProgress = async () => {
+    const didUndo = await undoTodayProgress();
     if (didUndo) {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -225,6 +250,31 @@ export function HomeScreen() {
           },
         },
       ]);
+      return;
+    }
+
+    if (state === 'partial') {
+      if (date < today && canMarkPastDay) {
+        Alert.alert(
+          t('alerts.trackPastDayTitle'),
+          t('alerts.trackPastDayDescription', { date: formattedDate }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('common.markAsDone'),
+              onPress: () => {
+                void handleMarkPastDay(date);
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      Alert.alert(
+        t('alerts.partialDayTitle'),
+        t('alerts.partialDayDescription', { date: formattedDate }),
+      );
       return;
     }
 
@@ -346,6 +396,13 @@ export function HomeScreen() {
                     total: goal.totalDays,
                   })}
             </Text>
+            {isMultipleTimesGoal ? (
+              <View style={styles.goalTypeBadge}>
+                <Text style={styles.goalTypeBadgeText}>
+                  {t('goalType.timesPerDayBadge', { count: dailyTarget })}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <BigNumber
@@ -372,6 +429,9 @@ export function HomeScreen() {
               celebrationToken={celebrationToken}
               startDate={goal.createdAt}
               trackedWeekdays={goal.trackedWeekdays}
+              goalType={goal.type}
+              dailyTarget={goal.dailyTarget}
+              records={goal.records}
               onCellPress={handleCellPress}
             />
           </View>
@@ -394,11 +454,56 @@ export function HomeScreen() {
             </View>
           ) : (
             <>
+              {isMultipleTimesGoal ? (
+                <View style={styles.todayProgressBlock}>
+                  <View style={styles.todayProgressHeader}>
+                    <Text style={styles.todayProgressTitle}>{t('home.todayProgress')}</Text>
+                    <Text style={styles.todayProgressCount}>
+                      {t('home.todayProgressCount', {
+                        count: Math.min(todayCount, dailyTarget),
+                        target: dailyTarget,
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.todayProgressDots}>
+                    {Array.from({ length: dailyTarget }, (_, index) => {
+                      const filled = index < todayCount;
+                      return (
+                        <View
+                          key={`today-dot-${index}`}
+                          style={[
+                            styles.todayProgressDot,
+                            filled ? styles.todayProgressDotFilled : null,
+                          ]}
+                        />
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
               <PrimaryButton
-                label={t('common.markAsDone')}
+                label={
+                  isMultipleTimesGoal
+                    ? isTodayTargetReached
+                      ? t('common.doneToday')
+                      : t('common.trackOne')
+                    : t('common.markAsDone')
+                }
                 onPress={handleMarkDone}
-                disabled={!canCompleteToday || isMarkingDone || showCelebration}
+                disabled={
+                  !canCompleteToday || isTodayTargetReached || isMarkingDone || showCelebration
+                }
               />
+              {isMultipleTimesGoal && todayCount > 0 ? (
+                <Pressable
+                  onPress={handleUndoTodayProgress}
+                  disabled={isMarkingDone || showCelebration}
+                  accessibilityRole="button"
+                  style={styles.undoLastButton}
+                >
+                  <Text style={styles.undoLastText}>{t('common.undoLast')}</Text>
+                </Pressable>
+              ) : null}
               {!isTrackedToday ? (
                 <Text style={styles.hint}>
                   {`${t('home.restDay')}${nextTrackedLabel ? ` ${t('home.nextCheckIn', { day: nextTrackedLabel })}` : ''}`}
@@ -465,6 +570,21 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: '#6B6B6B',
   },
+  goalTypeBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#ECFDF3',
+    borderWidth: 1,
+    borderColor: '#B7E4C7',
+  },
+  goalTypeBadgeText: {
+    color: '#17663A',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   gridSection: {
     marginTop: 8,
   },
@@ -495,6 +615,59 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     alignItems: 'center',
+  },
+  todayProgressBlock: {
+    width: '100%',
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  todayProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  todayProgressTitle: {
+    fontSize: 14,
+    color: '#4A4A4A',
+    fontWeight: '700',
+  },
+  todayProgressCount: {
+    fontSize: 14,
+    color: '#111111',
+    fontWeight: '800',
+  },
+  todayProgressDots: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  todayProgressDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+    backgroundColor: '#FFFFFF',
+  },
+  todayProgressDotFilled: {
+    borderColor: '#1FAE63',
+    backgroundColor: '#1FAE63',
+  },
+  undoLastButton: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  undoLastText: {
+    color: '#4A4A4A',
+    fontSize: 15,
+    fontWeight: '700',
   },
   completedCard: {
     width: '100%',
