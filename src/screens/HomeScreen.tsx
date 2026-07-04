@@ -387,12 +387,12 @@ export function HomeScreen() {
             <Text style={styles.caption}>
               {startedLabel
                 ? t('home.dayOfTotalStarted', {
-                    current: Math.min(displayCompletedDays + 1, goal.totalDays),
+                    completed: Math.min(displayCompletedDays, goal.totalDays),
                     total: goal.totalDays,
                     date: startedLabel,
                   })
                 : t('home.dayOfTotal', {
-                    current: Math.min(displayCompletedDays + 1, goal.totalDays),
+                    completed: Math.min(displayCompletedDays, goal.totalDays),
                     total: goal.totalDays,
                   })}
             </Text>
