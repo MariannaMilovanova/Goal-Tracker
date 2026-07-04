@@ -55,7 +55,7 @@ function GoalCard({
             accessibilityRole="button"
             accessibilityLabel={t('goals.deleteGoalAccessibility', { title: goal.title })}
           >
-            <Ionicons name="trash-outline" size={18} color="#B42318" />
+            <Ionicons name="trash-outline" size={16} color="#B42318" />
           </Pressable>
         ) : null}
       </View>
@@ -269,10 +269,8 @@ const styles = StyleSheet.create({
   iconAction: {
     width: 36,
     height: 36,
-    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF4F2',
   },
   metaText: {
     fontSize: 14,
