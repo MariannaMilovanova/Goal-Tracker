@@ -420,7 +420,7 @@ export function EditGoalScreen() {
                   style={styles.deleteButton}
                 >
                   <Ionicons name="trash-outline" size={16} color="#B42318" />
-                  <Text style={styles.deleteText}>{t('editGoal.deleteGoal')}</Text>
+                  <Text style={styles.deleteText}>{t('common.delete')}</Text>
                 </Pressable>
               ) : (
                 <View />
