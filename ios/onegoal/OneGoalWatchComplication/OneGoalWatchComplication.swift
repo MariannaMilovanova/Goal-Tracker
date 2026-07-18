@@ -99,6 +99,7 @@ struct ComplicationView: View {
     return min(Double(goal.completedDays) / Double(goal.totalDays), 1)
   }
 
+  // Answers "did I do it today?" — checkmark when done, current day when not.
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
     ZStack {
       Circle()
@@ -107,27 +108,22 @@ struct ComplicationView: View {
       Circle()
         .trim(from: 0, to: progress(goal))
         .stroke(
-          Color.orange,
+          goal.isCompletedToday ? Color.green : Color.orange,
           style: StrokeStyle(lineWidth: 3, lineCap: .round)
         )
-        .rotationEffect(.degrees(90))  // starts at the bottom, away from the flame
+        .rotationEffect(.degrees(-90))
 
-      Text("\(goal.completedDays)")
-        .font(.system(size: 20, weight: .heavy, design: .rounded))
-        .monospacedDigit()
-        .foregroundStyle(.white)
-        .widgetAccentable()
-
-      // Flame badge at the top — the True Focus signature
-      VStack {
-        Image(systemName: "flame.fill")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundStyle(.orange)
-          .padding(.horizontal, 3)
-          .background(
-            Capsule().fill(Color.black)
-          )
-        Spacer()
+      if goal.isCompletedToday {
+        Image(systemName: "checkmark")
+          .font(.system(size: 19, weight: .heavy))
+          .foregroundStyle(.green)
+          .widgetAccentable()
+      } else {
+        Text("\(currentDay(goal))")
+          .font(.system(size: 20, weight: .heavy, design: .rounded))
+          .monospacedDigit()
+          .foregroundStyle(.white)
+          .widgetAccentable()
       }
     }
     .padding(1)
