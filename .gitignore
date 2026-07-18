@@ -37,5 +37,16 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
+/ios/*
 /android
+
+# ...but keep hand-written native code (Apple Watch app, widget, custom targets)
+!/ios/onegoal/
+/ios/onegoal/*
+!/ios/onegoal/OneGoalWatch/
+!/ios/onegoal/OneGoalWatchBridge.swift
+!/ios/onegoal/OneGoalWidget/
+!/ios/onegoal/OneGoalWidgetBridge.swift
+!/ios/onegoal.xcodeproj/
+/ios/onegoal.xcodeproj/*
+!/ios/onegoal.xcodeproj/project.pbxproj
