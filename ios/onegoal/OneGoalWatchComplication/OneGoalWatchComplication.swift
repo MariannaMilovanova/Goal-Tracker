@@ -100,15 +100,25 @@ struct ComplicationView: View {
   }
 
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
-    Gauge(value: progress(goal)) {
-      Text("d")
-    } currentValueLabel: {
+    ZStack {
+      Circle()
+        .stroke(Color.white.opacity(0.15), lineWidth: 3.5)
+
+      Circle()
+        .trim(from: 0, to: progress(goal))
+        .stroke(
+          Color.green,
+          style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+        )
+        .rotationEffect(.degrees(-90))
+
       Text("\(goal.completedDays)")
-        .font(.system(.title3, design: .rounded, weight: .bold))
+        .font(.system(size: 21, weight: .heavy, design: .rounded))
+        .monospacedDigit()
+        .foregroundStyle(.white)
         .widgetAccentable()
     }
-    .gaugeStyle(.accessoryCircular)
-    .tint(.green)
+    .padding(2)
   }
 
   private func corner(_ goal: WatchGoalSnapshot) -> some View {
