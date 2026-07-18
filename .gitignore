@@ -37,17 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios/*
+# ios/ is fully tracked (bare workflow) because it contains the hand-written
+# Apple Watch app, complication and widget targets that `expo prebuild` cannot
+# regenerate. Pods/, build/ and user data are excluded via ios/.gitignore.
 /android
-
-# ...but keep hand-written native code (Apple Watch app, widget, custom targets)
-!/ios/onegoal/
-/ios/onegoal/*
-!/ios/onegoal/OneGoalWatch/
-!/ios/onegoal/OneGoalWatchComplication/
-!/ios/onegoal/OneGoalWatchBridge.swift
-!/ios/onegoal/OneGoalWidget/
-!/ios/onegoal/OneGoalWidgetBridge.swift
-!/ios/onegoal.xcodeproj/
-/ios/onegoal.xcodeproj/*
-!/ios/onegoal.xcodeproj/project.pbxproj

@@ -8,6 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		08E507C76FA84D6DB06788E9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A68C0136E82548A29605DC8C /* SwiftUI.framework */; };
+		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1C2F8A1B4D4C4A5EA31B7C11 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1C2F8A1B4D4C4A5EA31B7C10 /* PrivacyInfo.xcprivacy */; };
+		268FB65397104DE0B6152C1D /* OneGoalWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123E7C7C80454AFB9F007BA5 /* OneGoalWidget.swift */; };
+		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		7A70A43895B3406D8B6225EA /* TrueFocusWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 41A7938BCD8645C6B3AC9229 /* TrueFocusWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		90053A6C77BE082CF5CDDF59 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778D98660EB5CBD3DB5F62D5 /* ExpoModulesProvider.swift */; };
 		A10000000000000000000001 /* OneGoalWatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* OneGoalWatchBridge.swift */; };
 		A10000000000000000000003 /* OneGoalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* OneGoalWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000000000000000000005 /* OneGoalWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* OneGoalWatchApp.swift */; };
@@ -28,12 +34,6 @@
 		A20000000000000000000004 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */; };
 		A20000000000000000000005 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A68C0136E82548A29605DC8C /* SwiftUI.framework */; };
 		A20000000000000000000006 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */; };
-		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1C2F8A1B4D4C4A5EA31B7C11 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1C2F8A1B4D4C4A5EA31B7C10 /* PrivacyInfo.xcprivacy */; };
-		268FB65397104DE0B6152C1D /* OneGoalWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123E7C7C80454AFB9F007BA5 /* OneGoalWidget.swift */; };
-		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		7A70A43895B3406D8B6225EA /* TrueFocusWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 41A7938BCD8645C6B3AC9229 /* TrueFocusWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		90053A6C77BE082CF5CDDF59 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778D98660EB5CBD3DB5F62D5 /* ExpoModulesProvider.swift */; };
 		B76E1C61150285D638ADFD9D /* libPods-onegoal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FEEDCAAF6166F5EAC5C2914 /* libPods-onegoal.a */; };
 		B85C6BDF275F4EC4B2FDFDD5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
@@ -67,17 +67,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		D0B92C4C64A940C396BD2BE8 /* Embed App Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				7A70A43895B3406D8B6225EA /* TrueFocusWidget.appex in Embed App Extensions */,
-			);
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		A10000000000000000000026 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -100,10 +89,31 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0B92C4C64A940C396BD2BE8 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				7A70A43895B3406D8B6225EA /* TrueFocusWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		123E7C7C80454AFB9F007BA5 /* OneGoalWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneGoalWidget.swift; sourceTree = "<group>"; };
+		13B07F961A680F5B00A75B9A /* onegoal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = onegoal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = onegoal/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = onegoal/Info.plist; sourceTree = "<group>"; };
+		1C2F8A1B4D4C4A5EA31B7C10 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = onegoal/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		3FEEDCAAF6166F5EAC5C2914 /* libPods-onegoal.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-onegoal.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		41A7938BCD8645C6B3AC9229 /* TrueFocusWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrueFocusWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		778D98660EB5CBD3DB5F62D5 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-onegoal/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		7979028A3E743B7F26919334 /* Pods-onegoal.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-onegoal.release.xcconfig"; path = "Target Support Files/Pods-onegoal/Pods-onegoal.release.xcconfig"; sourceTree = "<group>"; };
+		93212DB6B837658FCED681E0 /* Pods-onegoal.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-onegoal.debug.xcconfig"; path = "Target Support Files/Pods-onegoal/Pods-onegoal.debug.xcconfig"; sourceTree = "<group>"; };
 		A10000000000000000000002 /* OneGoalWatchBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = onegoal/OneGoalWatchBridge.swift; sourceTree = "<group>"; };
 		A10000000000000000000004 /* OneGoalWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OneGoalWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000013 /* OneGoalWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneGoalWatchApp.swift; sourceTree = "<group>"; };
@@ -116,22 +126,12 @@
 		A10000000000000000000020 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A10000000000000000000021 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000033 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
+		A10000000000000000000036 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = System/Library/Frameworks/WatchKit.framework; sourceTree = SDKROOT; };
 		A20000000000000000000010 /* OneGoalWatchComplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneGoalWatchComplication.swift; sourceTree = "<group>"; };
 		A20000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000012 /* OneGoalWatchComplication.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OneGoalWatchComplication.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000013 /* OneGoalWatchComplication.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OneGoalWatchComplication.entitlements; sourceTree = "<group>"; };
 		A20000000000000000000014 /* OneGoalWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OneGoalWatch.entitlements; sourceTree = "<group>"; };
-		A10000000000000000000036 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = System/Library/Frameworks/WatchKit.framework; sourceTree = SDKROOT; };
-		13B07F961A680F5B00A75B9A /* onegoal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = onegoal.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = onegoal/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = onegoal/Info.plist; sourceTree = "<group>"; };
-		1C2F8A1B4D4C4A5EA31B7C10 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = onegoal/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		3FEEDCAAF6166F5EAC5C2914 /* libPods-onegoal.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-onegoal.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		41A7938BCD8645C6B3AC9229 /* TrueFocusWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrueFocusWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		778D98660EB5CBD3DB5F62D5 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-onegoal/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		7979028A3E743B7F26919334 /* Pods-onegoal.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-onegoal.release.xcconfig"; path = "Target Support Files/Pods-onegoal/Pods-onegoal.release.xcconfig"; sourceTree = "<group>"; };
-		93212DB6B837658FCED681E0 /* Pods-onegoal.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-onegoal.debug.xcconfig"; path = "Target Support Files/Pods-onegoal/Pods-onegoal.debug.xcconfig"; sourceTree = "<group>"; };
 		A68C0136E82548A29605DC8C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = onegoal/SplashScreen.storyboard; sourceTree = "<group>"; };
 		ABCDCD5A022D459A978E8BB1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -218,33 +218,6 @@
 			path = onegoal/OneGoalWidget;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000022 /* OneGoalWatch */ = {
-			isa = PBXGroup;
-			children = (
-				A10000000000000000000013 /* OneGoalWatchApp.swift */,
-				A10000000000000000000014 /* WatchConnectivityController.swift */,
-				A10000000000000000000015 /* WatchModels.swift */,
-				A10000000000000000000016 /* WatchRootView.swift */,
-				A10000000000000000000017 /* WatchGoalDetailView.swift */,
-				A10000000000000000000018 /* WatchGoalsListView.swift */,
-				A10000000000000000000019 /* Info.plist */,
-				A10000000000000000000020 /* PrivacyInfo.xcprivacy */,
-				A10000000000000000000021 /* Assets.xcassets */,
-				A20000000000000000000014 /* OneGoalWatch.entitlements */,
-			);
-			path = onegoal/OneGoalWatch;
-			sourceTree = "<group>";
-		};
-		A20000000000000000000021 /* OneGoalWatchComplication */ = {
-			isa = PBXGroup;
-			children = (
-				A20000000000000000000010 /* OneGoalWatchComplication.swift */,
-				A20000000000000000000011 /* Info.plist */,
-				A20000000000000000000013 /* OneGoalWatchComplication.entitlements */,
-			);
-			path = onegoal/OneGoalWatchComplication;
-			sourceTree = "<group>";
-		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -297,6 +270,33 @@
 				A20000000000000000000012 /* OneGoalWatchComplication.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000022 /* OneGoalWatch */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000013 /* OneGoalWatchApp.swift */,
+				A10000000000000000000014 /* WatchConnectivityController.swift */,
+				A10000000000000000000015 /* WatchModels.swift */,
+				A10000000000000000000016 /* WatchRootView.swift */,
+				A10000000000000000000017 /* WatchGoalDetailView.swift */,
+				A10000000000000000000018 /* WatchGoalsListView.swift */,
+				A10000000000000000000019 /* Info.plist */,
+				A10000000000000000000020 /* PrivacyInfo.xcprivacy */,
+				A10000000000000000000021 /* Assets.xcassets */,
+				A20000000000000000000014 /* OneGoalWatch.entitlements */,
+			);
+			path = onegoal/OneGoalWatch;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000021 /* OneGoalWatchComplication */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000010 /* OneGoalWatchComplication.swift */,
+				A20000000000000000000011 /* Info.plist */,
+				A20000000000000000000013 /* OneGoalWatchComplication.entitlements */,
+			);
+			path = onegoal/OneGoalWatchComplication;
 			sourceTree = "<group>";
 		};
 		A6411F875791DDDDC14DAED1 /* Pods */ = {
@@ -463,14 +463,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E8BEEDBF3CB9491D9B9B2E96 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				C8D35A8A1F7B4B89A22AF001 /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		A10000000000000000000025 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -484,6 +476,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E8BEEDBF3CB9491D9B9B2E96 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8D35A8A1F7B4B89A22AF001 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -563,6 +563,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoLocalization/ExpoLocalization_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
@@ -575,6 +576,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoLocalization_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
@@ -789,106 +791,6 @@
 			};
 			name = Release;
 		};
-		A10000000000000000000030 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatch/OneGoalWatch.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = onegoal/OneGoalWatch/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp;
-				PRODUCT_NAME = OneGoalWatch;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VERSIONING_SYSTEM = "apple-generic";
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-				WK_COMPANION_APP_BUNDLE_IDENTIFIER = com.mj.onegoal;
-			};
-			name = Debug;
-		};
-		A10000000000000000000031 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatch/OneGoalWatch.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = onegoal/OneGoalWatch/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp;
-				PRODUCT_NAME = OneGoalWatch;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VERSIONING_SYSTEM = "apple-generic";
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-				WK_COMPANION_APP_BUNDLE_IDENTIFIER = com.mj.onegoal;
-			};
-			name = Release;
-		};
-		A20000000000000000000030 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatchComplication/OneGoalWatchComplication.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = onegoal/OneGoalWatchComplication/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp.widget;
-				PRODUCT_NAME = OneGoalWatchComplication;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VERSIONING_SYSTEM = "apple-generic";
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Debug;
-		};
-		A20000000000000000000031 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatchComplication/OneGoalWatchComplication.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = onegoal/OneGoalWatchComplication/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp.widget;
-				PRODUCT_NAME = OneGoalWatchComplication;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VERSIONING_SYSTEM = "apple-generic";
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Release;
-		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1007,6 +909,110 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000030 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatch/OneGoalWatch.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = onegoal/OneGoalWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp;
+				PRODUCT_NAME = OneGoalWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+				WK_COMPANION_APP_BUNDLE_IDENTIFIER = com.mj.onegoal;
+			};
+			name = Debug;
+		};
+		A10000000000000000000031 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatch/OneGoalWatch.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = onegoal/OneGoalWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp;
+				PRODUCT_NAME = OneGoalWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+				WK_COMPANION_APP_BUNDLE_IDENTIFIER = com.mj.onegoal;
+			};
+			name = Release;
+		};
+		A20000000000000000000030 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatchComplication/OneGoalWatchComplication.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = onegoal/OneGoalWatchComplication/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp.widget;
+				PRODUCT_NAME = OneGoalWatchComplication;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		A20000000000000000000031 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = onegoal/OneGoalWatchComplication/OneGoalWatchComplication.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = onegoal/OneGoalWatchComplication/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mj.onegoal.watchkitapp.widget;
+				PRODUCT_NAME = OneGoalWatchComplication;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1028,6 +1034,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "onegoal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				83CBBA201A601CBA00E9B192 /* Debug */,
+				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A10000000000000000000032 /* Build configuration list for PBXNativeTarget "OneGoalWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1042,15 +1057,6 @@
 			buildConfigurations = (
 				A20000000000000000000030 /* Debug */,
 				A20000000000000000000031 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "onegoal" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				83CBBA201A601CBA00E9B192 /* Debug */,
-				83CBBA211A601CBA00E9B192 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
