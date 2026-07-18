@@ -99,16 +99,30 @@ struct ComplicationView: View {
     return min(Double(goal.completedDays) / Double(goal.totalDays), 1)
   }
 
-  // Calendar-style: DAY label + current day number, no ring.
+  // True Focus signature: the square day cell + current day number.
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
-    VStack(spacing: -1) {
-      Text("DAY")
-        .font(.system(size: 10, weight: .semibold))
-        .kerning(0.5)
-        .foregroundStyle(goal.isCompletedToday ? Color.green : Color.orange)
-        .widgetAccentable()
+    VStack(spacing: 3) {
+      if goal.isCompletedToday {
+        // Today's cell is filled — done
+        RoundedRectangle(cornerRadius: 3.5)
+          .fill(Color.green)
+          .frame(width: 14, height: 14)
+          .overlay(
+            Image(systemName: "checkmark")
+              .font(.system(size: 9, weight: .heavy))
+              .foregroundStyle(.black)
+          )
+          .widgetAccentable()
+      } else {
+        // Today's cell is still empty
+        RoundedRectangle(cornerRadius: 3.5)
+          .stroke(Color.green, lineWidth: 1.5)
+          .frame(width: 14, height: 14)
+          .widgetAccentable()
+      }
+
       Text("\(currentDay(goal))")
-        .font(.system(size: 26, weight: .heavy, design: .rounded))
+        .font(.system(size: 22, weight: .heavy, design: .rounded))
         .monospacedDigit()
         .foregroundStyle(.white)
         .widgetAccentable()
