@@ -24,6 +24,8 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
     snapshot = loadCachedSnapshot()
     selectedGoalId = defaultGoalId(in: snapshot)
     configureSession()
+    // Keep watch face complications in sync with the latest cached snapshot.
+    WidgetCenter.shared.reloadAllTimelines()
   }
 
   var selectedGoal: WatchGoalSnapshot? {

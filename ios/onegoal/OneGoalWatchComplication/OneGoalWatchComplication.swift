@@ -99,25 +99,25 @@ struct ComplicationView: View {
     return min(Double(goal.completedDays) / Double(goal.totalDays), 1)
   }
 
-  // True Focus signature: the square day cell + current day number.
+  // True Focus signature: the square day cell next to the current day number.
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
-    VStack(spacing: 3) {
+    HStack(spacing: 3) {
       if goal.isCompletedToday {
         // Today's cell is filled — done
-        RoundedRectangle(cornerRadius: 3.5)
+        RoundedRectangle(cornerRadius: 3)
           .fill(Color.green)
-          .frame(width: 14, height: 14)
+          .frame(width: 12, height: 12)
           .overlay(
             Image(systemName: "checkmark")
-              .font(.system(size: 9, weight: .heavy))
+              .font(.system(size: 8, weight: .heavy))
               .foregroundStyle(.black)
           )
           .widgetAccentable()
       } else {
         // Today's cell is still empty
-        RoundedRectangle(cornerRadius: 3.5)
+        RoundedRectangle(cornerRadius: 3)
           .stroke(Color.green, lineWidth: 1.5)
-          .frame(width: 14, height: 14)
+          .frame(width: 12, height: 12)
           .widgetAccentable()
       }
 
