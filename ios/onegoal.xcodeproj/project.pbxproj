@@ -29,6 +29,7 @@
 		A10000000000000000000037 /* WatchKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000036 /* WatchKit.framework */; };
 		A10000000000000000000038 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A68C0136E82548A29605DC8C /* SwiftUI.framework */; };
 		A20000000000000000000001 /* OneGoalWatchComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* OneGoalWatchComplication.swift */; };
+		A20000000000000000000040 /* OneGoalBridges.m in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000041 /* OneGoalBridges.m */; };
 		A20000000000000000000002 /* WatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* WatchModels.swift */; };
 		A20000000000000000000003 /* OneGoalWatchComplication.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* OneGoalWatchComplication.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A20000000000000000000004 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37D3E7103B7C49BBBDCF4D8B /* WidgetKit.framework */; };
@@ -128,6 +129,7 @@
 		A10000000000000000000033 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 		A10000000000000000000036 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = System/Library/Frameworks/WatchKit.framework; sourceTree = SDKROOT; };
 		A20000000000000000000010 /* OneGoalWatchComplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneGoalWatchComplication.swift; sourceTree = "<group>"; };
+		A20000000000000000000041 /* OneGoalBridges.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = onegoal/OneGoalBridges.m; sourceTree = "<group>"; };
 		A20000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000012 /* OneGoalWatchComplication.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OneGoalWatchComplication.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000013 /* OneGoalWatchComplication.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OneGoalWatchComplication.entitlements; sourceTree = "<group>"; };
@@ -191,6 +193,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				A20000000000000000000041 /* OneGoalBridges.m */,
 				F1A1B2C3D4E5F607890ABCDF /* OneGoalWidgetBridge.swift */,
 				A10000000000000000000002 /* OneGoalWatchBridge.swift */,
 				1DD40B24EE9B41EFA75DB492 /* OneGoalWidget */,
@@ -619,6 +622,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				A20000000000000000000040 /* OneGoalBridges.m in Sources */,
 				F1A1B2C3D4E5F607890ABCDE /* OneGoalWidgetBridge.swift in Sources */,
 				A10000000000000000000001 /* OneGoalWatchBridge.swift in Sources */,
 				90053A6C77BE082CF5CDDF59 /* ExpoModulesProvider.swift in Sources */,

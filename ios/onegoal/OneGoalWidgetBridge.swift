@@ -3,12 +3,9 @@ import React
 import WidgetKit
 
 @objc(OneGoalWidgetBridge)
-class OneGoalWidgetBridge: NSObject, RCTBridgeModule {
-  static func moduleName() -> String! {
-    return "OneGoalWidgetBridge"
-  }
-
-  static func requiresMainQueueSetup() -> Bool {
+class OneGoalWidgetBridge: NSObject {
+  // Registered with React Native via RCT_EXTERN_MODULE in OneGoalBridges.m.
+  @objc static func requiresMainQueueSetup() -> Bool {
     return false
   }
 
