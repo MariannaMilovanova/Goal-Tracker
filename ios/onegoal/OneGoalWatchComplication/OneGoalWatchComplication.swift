@@ -99,34 +99,20 @@ struct ComplicationView: View {
     return min(Double(goal.completedDays) / Double(goal.totalDays), 1)
   }
 
-  // Answers "did I do it today?" — checkmark when done, current day when not.
+  // Calendar-style: DAY label + current day number, no ring.
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
-    ZStack {
-      Circle()
-        .stroke(Color.white.opacity(0.15), lineWidth: 3)
-
-      Circle()
-        .trim(from: 0, to: progress(goal))
-        .stroke(
-          goal.isCompletedToday ? Color.green : Color.orange,
-          style: StrokeStyle(lineWidth: 3, lineCap: .round)
-        )
-        .rotationEffect(.degrees(-90))
-
-      if goal.isCompletedToday {
-        Image(systemName: "checkmark")
-          .font(.system(size: 19, weight: .heavy))
-          .foregroundStyle(.green)
-          .widgetAccentable()
-      } else {
-        Text("\(currentDay(goal))")
-          .font(.system(size: 20, weight: .heavy, design: .rounded))
-          .monospacedDigit()
-          .foregroundStyle(.white)
-          .widgetAccentable()
-      }
+    VStack(spacing: -1) {
+      Text("DAY")
+        .font(.system(size: 10, weight: .semibold))
+        .kerning(0.5)
+        .foregroundStyle(goal.isCompletedToday ? Color.green : Color.orange)
+        .widgetAccentable()
+      Text("\(currentDay(goal))")
+        .font(.system(size: 26, weight: .heavy, design: .rounded))
+        .monospacedDigit()
+        .foregroundStyle(.white)
+        .widgetAccentable()
     }
-    .padding(1)
   }
 
   private func corner(_ goal: WatchGoalSnapshot) -> some View {
