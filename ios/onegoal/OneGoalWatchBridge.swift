@@ -1,4 +1,5 @@
 import Foundation
+import React
 import WatchConnectivity
 
 @objc(OneGoalWatchBridge)
