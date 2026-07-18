@@ -102,23 +102,35 @@ struct ComplicationView: View {
   private func circular(_ goal: WatchGoalSnapshot) -> some View {
     ZStack {
       Circle()
-        .stroke(Color.white.opacity(0.15), lineWidth: 3.5)
+        .stroke(Color.white.opacity(0.15), lineWidth: 3)
 
       Circle()
         .trim(from: 0, to: progress(goal))
         .stroke(
-          Color.green,
-          style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+          Color.orange,
+          style: StrokeStyle(lineWidth: 3, lineCap: .round)
         )
-        .rotationEffect(.degrees(-90))
+        .rotationEffect(.degrees(90))  // starts at the bottom, away from the flame
 
       Text("\(goal.completedDays)")
-        .font(.system(size: 21, weight: .heavy, design: .rounded))
+        .font(.system(size: 20, weight: .heavy, design: .rounded))
         .monospacedDigit()
         .foregroundStyle(.white)
         .widgetAccentable()
+
+      // Flame badge at the top — the True Focus signature
+      VStack {
+        Image(systemName: "flame.fill")
+          .font(.system(size: 11, weight: .bold))
+          .foregroundStyle(.orange)
+          .padding(.horizontal, 3)
+          .background(
+            Capsule().fill(Color.black)
+          )
+        Spacer()
+      }
     }
-    .padding(2)
+    .padding(1)
   }
 
   private func corner(_ goal: WatchGoalSnapshot) -> some View {
