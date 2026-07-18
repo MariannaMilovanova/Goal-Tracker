@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
+import { addWatchActionListener, publishWatchSnapshot } from '../native/watchBridge';
 import { clearWidgetSnapshot, writeWidgetSnapshot } from '../native/widgetBridge';
 import {
   addDaysToDateString,
@@ -19,6 +20,11 @@ import {
   setRecordCount,
 } from '../utils/goalProgress';
 import { normalizeGoal, normalizeGoalsState } from '../utils/goalValidation';
+import {
+  buildWatchSnapshot,
+  WatchActionRequest,
+  WatchActionResponse,
+} from '../utils/watchSnapshot';
 import { buildWidgetSnapshot } from '../utils/widgetSnapshot';
 import { MAX_GOALS } from './goalConfig';
 import { Goal, GoalDayState, GoalInput, GoalsState, GoalUpdate, TrackOneResult } from './goalTypes';
@@ -354,6 +360,22 @@ export function GoalProvider({
     }
   }, []);
 
+  const syncWatch = useCallback(async (nextState: GoalsState) => {
+    try {
+      await publishWatchSnapshot(buildWatchSnapshot(nextState));
+    } catch (error) {
+      console.warn('Failed to update Watch snapshot.', error);
+    }
+  }, []);
+
+  const syncNativeSurfaces = useCallback(
+    async (nextState: GoalsState) => {
+      await syncWidget(nextState);
+      await syncWatch(nextState);
+    },
+    [syncWidget, syncWatch],
+  );
+
   const selectedGoal = useMemo(
     () => goals.find((goal) => goal.id === selectedGoalId) ?? null,
     [goals, selectedGoalId],
@@ -364,7 +386,9 @@ export function GoalProvider({
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        applyState({ goals: [], trueFocusGoalId: null }, null);
+        const emptyState: GoalsState = { goals: [], trueFocusGoalId: null };
+        applyState(emptyState, null);
+        await syncNativeSurfaces(emptyState);
         return;
       }
 
@@ -388,8 +412,10 @@ export function GoalProvider({
         });
 
         if (!legacyGoal) {
+          const emptyState: GoalsState = { goals: [], trueFocusGoalId: null };
           await AsyncStorage.removeItem(STORAGE_KEY);
-          applyState({ goals: [], trueFocusGoalId: null }, null);
+          applyState(emptyState, null);
+          await syncNativeSurfaces(emptyState);
           return;
         }
 
@@ -408,16 +434,18 @@ export function GoalProvider({
 
       if (didMigrateLegacy || normalizedState.didChange) {
         await persistState(normalizedState.state);
-        await syncWidget(normalizedState.state);
       }
+      await syncNativeSurfaces(normalizedState.state);
     } catch (error) {
+      const emptyState: GoalsState = { goals: [], trueFocusGoalId: null };
       console.warn('Failed to load goals from storage.', error);
-      applyState({ goals: [], trueFocusGoalId: null }, null);
+      applyState(emptyState, null);
       await AsyncStorage.removeItem(STORAGE_KEY);
+      await syncNativeSurfaces(emptyState);
     } finally {
       setIsLoading(false);
     }
-  }, [applyState, persistState, syncWidget]);
+  }, [applyState, persistState, syncNativeSurfaces]);
 
   const createGoal = useCallback(
     async (input: GoalInput) => {
@@ -448,10 +476,10 @@ export function GoalProvider({
       const nextState = buildPersistedState(nextGoals, trueFocusGoalIdRef.current ?? nextGoal.id);
       applyState(nextState, nextGoal.id);
       await persistState(nextState);
-      await syncWidget(nextState);
+      await syncNativeSurfaces(nextState);
       return nextGoal;
     },
-    [applyState, persistState, syncWidget],
+    [applyState, persistState, syncNativeSurfaces],
   );
 
   const commitGoals = useCallback(
@@ -463,10 +491,10 @@ export function GoalProvider({
       const nextState = buildPersistedState(nextGoals, nextTrueFocusGoalId);
       applyState(nextState, nextSelectedGoalId);
       await persistState(nextState);
-      await syncWidget(nextState);
+      await syncNativeSurfaces(nextState);
       return nextState;
     },
-    [applyState, persistState, syncWidget],
+    [applyState, persistState, syncNativeSurfaces],
   );
 
   const markDone = useCallback(
@@ -1001,6 +1029,92 @@ export function GoalProvider({
     },
     [commitGoals],
   );
+
+  const getCurrentWatchSnapshot = useCallback(
+    () => buildWatchSnapshot(buildPersistedState(goalsRef.current, trueFocusGoalIdRef.current)),
+    [],
+  );
+
+  const buildWatchActionResponse = useCallback(
+    (
+      request: WatchActionRequest,
+      ok: boolean,
+      reason?: WatchActionResponse['reason'],
+      message?: string,
+    ): WatchActionResponse => ({
+      version: 1,
+      actionId: request.actionId,
+      ok,
+      reason,
+      message,
+      snapshot: getCurrentWatchSnapshot(),
+    }),
+    [getCurrentWatchSnapshot],
+  );
+
+  React.useEffect(() => {
+    return addWatchActionListener(async (request) => {
+      if (request.action === 'getGoalsSnapshot') {
+        return buildWatchActionResponse(request, true);
+      }
+
+      const activeGoalId =
+        request.goalId ?? getDefaultGoalId(goalsRef.current, trueFocusGoalIdRef.current);
+      const activeGoal = goalsRef.current.find((entry) => entry.id === activeGoalId);
+
+      if (!activeGoalId || !activeGoal) {
+        return buildWatchActionResponse(request, false, 'goalNotFound', 'Goal unavailable.');
+      }
+
+      if (request.action === 'markDone') {
+        if (isMultipleTimesPerDayGoal(activeGoal)) {
+          return buildWatchActionResponse(request, false, 'notTrackableToday', 'Use Track one.');
+        }
+
+        const didMark = await markDone(activeGoalId);
+        return buildWatchActionResponse(
+          request,
+          didMark,
+          didMark ? undefined : 'alreadyDone',
+          didMark ? 'Nice work.' : 'Done today.',
+        );
+      }
+
+      if (request.action === 'trackOne') {
+        if (!isMultipleTimesPerDayGoal(activeGoal)) {
+          return buildWatchActionResponse(request, false, 'notTrackableToday', 'Use Mark as done.');
+        }
+
+        const result = await trackOneToday(activeGoalId);
+        return buildWatchActionResponse(
+          request,
+          result !== false,
+          result === false ? 'alreadyDone' : undefined,
+          result === 'completed'
+            ? 'Nice work.'
+            : result === 'incremented'
+              ? 'Progress saved.'
+              : 'Done today.',
+        );
+      }
+
+      if (request.action === 'undoLast') {
+        if (!isMultipleTimesPerDayGoal(activeGoal)) {
+          return buildWatchActionResponse(request, false, 'notTrackableToday', 'Undo from iPhone.');
+        }
+
+        const didUndo = await undoTodayProgress(activeGoalId);
+        return buildWatchActionResponse(
+          request,
+          didUndo,
+          didUndo ? undefined : 'notTrackableToday',
+          didUndo ? 'Progress updated.' : 'Nothing to undo.',
+        );
+      }
+
+      return buildWatchActionResponse(request, false, 'unknown', 'Try again.');
+    });
+  }, [buildWatchActionResponse, markDone, trackOneToday, undoTodayProgress]);
 
   React.useEffect(() => {
     if (autoLoad) {
