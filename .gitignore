@@ -44,6 +44,7 @@ yarn-error.*
 !/ios/onegoal/
 /ios/onegoal/*
 !/ios/onegoal/OneGoalWatch/
+!/ios/onegoal/OneGoalWatchComplication/
 !/ios/onegoal/OneGoalWatchBridge.swift
 !/ios/onegoal/OneGoalWidget/
 !/ios/onegoal/OneGoalWidgetBridge.swift

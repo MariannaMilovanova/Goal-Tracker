@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import WatchConnectivity
 import WatchKit
+import WidgetKit
 
 final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDelegate {
   @Published var snapshot: WatchAppSnapshot?
@@ -10,8 +11,13 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
   @Published var statusMessage: String?
 
   private let snapshotKey = "watchSnapshot"
+  private let appGroupId = "group.com.mj.onegoal"
   private let decoder = JSONDecoder()
   private let encoder = JSONEncoder()
+
+  private var sharedDefaults: UserDefaults? {
+    UserDefaults(suiteName: appGroupId)
+  }
 
   override init() {
     super.init()
@@ -216,14 +222,29 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
     guard let data = try? encoder.encode(snapshot) else {
       return
     }
+    sharedDefaults?.set(data, forKey: snapshotKey)
+    // Keep the standard container in sync for backward compatibility.
     UserDefaults.standard.set(data, forKey: snapshotKey)
+    // Refresh watch face complications with the new data.
+    WidgetCenter.shared.reloadAllTimelines()
   }
 
   private func loadCachedSnapshot() -> WatchAppSnapshot? {
+    // Prefer the App Group container (shared with the complication).
+    if let data = sharedDefaults?.data(forKey: snapshotKey),
+      let snapshot = try? decoder.decode(WatchAppSnapshot.self, from: data)
+    {
+      return snapshot
+    }
+    // Migration fallback: older builds cached in the standard container.
     guard let data = UserDefaults.standard.data(forKey: snapshotKey) else {
       return nil
     }
-    return try? decoder.decode(WatchAppSnapshot.self, from: data)
+    let snapshot = try? decoder.decode(WatchAppSnapshot.self, from: data)
+    if let snapshot = snapshot, let raw = try? encoder.encode(snapshot) {
+      sharedDefaults?.set(raw, forKey: snapshotKey)
+    }
+    return snapshot
   }
 
   func session(

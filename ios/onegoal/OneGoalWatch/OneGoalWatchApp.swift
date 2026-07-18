@@ -8,6 +8,14 @@ struct OneGoalWatchApp: App {
     WindowGroup {
       WatchRootView()
         .environmentObject(connectivity)
+        .onOpenURL { url in
+          guard url.scheme == "onegoalwatch", url.host == "truefocus" else {
+            return
+          }
+          if let trueFocusGoalId = connectivity.snapshot?.trueFocusGoalId {
+            connectivity.selectedGoalId = trueFocusGoalId
+          }
+        }
     }
   }
 }
