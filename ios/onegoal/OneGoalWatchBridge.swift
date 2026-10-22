@@ -5,6 +5,7 @@ import WatchConnectivity
 @objc(OneGoalWatchBridge)
 class OneGoalWatchBridge: RCTEventEmitter, WCSessionDelegate {
   private var pendingReplies: [String: ([String: Any]) -> Void] = [:]
+  private var pendingActionPayloads: [String: String] = [:]
   private var hasListeners = false
   private var lastSnapshotPayload: String?
   private let appGroupIdentifier = "group.com.mj.onegoal"
@@ -24,11 +25,20 @@ class OneGoalWatchBridge: RCTEventEmitter, WCSessionDelegate {
   }
 
   override func startObserving() {
-    hasListeners = true
+    DispatchQueue.main.async {
+      self.hasListeners = true
+      let payloads = self.pendingActionPayloads
+      self.pendingActionPayloads.removeAll()
+      for (actionId, payload) in payloads where self.pendingReplies[actionId] != nil {
+        self.sendEvent(withName: "watchActionReceived", body: ["payload": payload])
+      }
+    }
   }
 
   override func stopObserving() {
-    hasListeners = false
+    DispatchQueue.main.async {
+      self.hasListeners = false
+    }
   }
 
   private func configureSession() {
@@ -75,6 +85,7 @@ class OneGoalWatchBridge: RCTEventEmitter, WCSessionDelegate {
   @objc(completeAction:responseJson:)
   func completeAction(_ actionId: String, responseJson: String) {
     DispatchQueue.main.async {
+      self.pendingActionPayloads.removeValue(forKey: actionId)
       guard let reply = self.pendingReplies.removeValue(forKey: actionId) else {
         return
       }
@@ -110,10 +121,9 @@ class OneGoalWatchBridge: RCTEventEmitter, WCSessionDelegate {
       if self.hasListeners {
         self.sendEvent(withName: "watchActionReceived", body: ["payload": payload])
       } else {
-        self.completeAction(
-          actionId,
-          responseJson: self.failurePayload(actionId: actionId, reason: "notReachable")
-        )
+        // A Watch message can wake iOS before React Native and goal storage are
+        // ready. Deliver the original request when the hydrated listener mounts.
+        self.pendingActionPayloads[actionId] = payload
       }
 
       self.scheduleTimeout(for: actionId)
@@ -149,7 +159,9 @@ class OneGoalWatchBridge: RCTEventEmitter, WCSessionDelegate {
   }
 
   private func scheduleTimeout(for actionId: String) {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+      // Expired requests must not execute when the listener eventually mounts.
+      self.pendingActionPayloads.removeValue(forKey: actionId)
       guard let reply = self.pendingReplies.removeValue(forKey: actionId) else {
         return
       }

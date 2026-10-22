@@ -33,22 +33,27 @@ struct ComplicationProvider: TimelineProvider {
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<ComplicationEntry>) -> Void) {
-    let entry = ComplicationEntry(date: Date(), goal: loadTrueFocusGoal())
+    let now = Date()
+    let entry = ComplicationEntry(date: now, goal: loadTrueFocusGoal(at: now))
     let startOfTomorrow = Calendar.current.startOfDay(
-      for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+      for: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
     )
-    completion(Timeline(entries: [entry], policy: .after(startOfTomorrow)))
+    let tomorrowEntry = ComplicationEntry(
+      date: startOfTomorrow, goal: loadTrueFocusGoal(at: startOfTomorrow)
+    )
+    completion(Timeline(entries: [entry, tomorrowEntry], policy: .after(startOfTomorrow)))
   }
 
-  private func loadTrueFocusGoal() -> WatchGoalSnapshot? {
+  private func loadTrueFocusGoal(at date: Date = Date()) -> WatchGoalSnapshot? {
     guard
       let defaults = UserDefaults(suiteName: "group.com.mj.onegoal"),
       let data = defaults.data(forKey: "watchSnapshot"),
-      let snapshot = try? JSONDecoder().decode(WatchAppSnapshot.self, from: data)
+      let cachedSnapshot = try? JSONDecoder().decode(WatchAppSnapshot.self, from: data)
     else {
       return nil
     }
 
+    let snapshot = cachedSnapshot.forCurrentDay(at: date)
     if let trueFocusGoalId = snapshot.trueFocusGoalId,
       let goal = snapshot.goals.first(where: { $0.id == trueFocusGoalId })
     {

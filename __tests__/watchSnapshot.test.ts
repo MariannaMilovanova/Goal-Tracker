@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+
 import { Goal } from '../src/store/goalTypes';
 import { buildWatchSnapshot } from '../src/utils/watchSnapshot';
 
@@ -34,6 +36,60 @@ describe('buildWatchSnapshot', () => {
 
     expect(snapshot.trueFocusGoalId).toBeNull();
     expect(snapshot.goals).toEqual([]);
+  });
+
+  it('includes the local calendar day even when the UTC date is different', () => {
+    jest.setSystemTime(new Date(2026, 2, 14, 23, 30));
+
+    expect(buildWatchSnapshot({ goals: [], trueFocusGoalId: null }).localDate).toBe('2026-03-14');
+  });
+
+  it('allows another check-in after local midnight without changing saved progress', () => {
+    const state = {
+      trueFocusGoalId: 'goal-1',
+      goals: [
+        buildGoal({
+          completedDays: 1,
+          timeline: ['completed'],
+          lastCompletedDate: '2026-03-14',
+        }),
+      ],
+    };
+    jest.setSystemTime(new Date(2026, 2, 14, 23, 59));
+    expect(buildWatchSnapshot(state).goals[0].isCompletedToday).toBe(true);
+
+    jest.setSystemTime(new Date(2026, 2, 15, 0, 1));
+    const snapshot = buildWatchSnapshot(state);
+    expect(snapshot.localDate).toBe('2026-03-15');
+    expect(snapshot.goals[0]).toEqual(
+      expect.objectContaining({
+        completedDays: 1,
+        todayCount: 0,
+        isCompletedToday: false,
+        canTrackToday: true,
+      }),
+    );
+  });
+
+  it('resets the daily count after midnight but keeps a finished goal untrackable', () => {
+    jest.setSystemTime(new Date(2026, 2, 15, 0, 1));
+    const snapshot = buildWatchSnapshot({
+      trueFocusGoalId: 'goal-1',
+      goals: [
+        buildGoal({
+          type: 'multipleTimesPerDay',
+          dailyTarget: 3,
+          totalDays: 1,
+          completedDays: 1,
+          lastCompletedDate: '2026-03-14',
+          records: { '2026-03-14': { count: 3 } },
+        }),
+      ],
+    });
+
+    expect(snapshot.goals[0]).toEqual(
+      expect.objectContaining({ todayCount: 0, isCompletedToday: false, canTrackToday: false }),
+    );
   });
 
   it('marks a once-per-day goal as done today', () => {

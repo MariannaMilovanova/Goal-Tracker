@@ -20,6 +20,7 @@ export type WatchGoalSnapshot = {
 export type WatchAppSnapshot = {
   version: 1;
   generatedAt: string;
+  localDate: string;
   trueFocusGoalId: string | null;
   goals: WatchGoalSnapshot[];
 };
@@ -49,12 +50,14 @@ function getDefaultGoalId(state: GoalsState): string | null {
 }
 
 export function buildWatchSnapshot(state: GoalsState): WatchAppSnapshot {
-  const today = getLocalDateString();
+  const now = new Date();
+  const today = getLocalDateString(now);
   const trueFocusGoalId = getDefaultGoalId(state);
 
   return {
     version: 1,
-    generatedAt: new Date().toISOString(),
+    generatedAt: now.toISOString(),
+    localDate: today,
     trueFocusGoalId,
     goals: state.goals.map((goal) => {
       const dailyTarget = getGoalDailyTarget(goal);

@@ -14,6 +14,9 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
   private let appGroupId = "group.com.mj.onegoal"
   private let decoder = JSONDecoder()
   private let encoder = JSONEncoder()
+  private var receivedSnapshot: WatchAppSnapshot?
+  private var pendingTrackAction: WatchActionRequest?
+  private var isRequestingSnapshot = false
 
   private var sharedDefaults: UserDefaults? {
     UserDefaults(suiteName: appGroupId)
@@ -21,7 +24,8 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
 
   override init() {
     super.init()
-    snapshot = loadCachedSnapshot()
+    receivedSnapshot = loadCachedSnapshot()
+    snapshot = receivedSnapshot?.forCurrentDay()
     selectedGoalId = defaultGoalId(in: snapshot)
     configureSession()
     // Keep watch face complications in sync with the latest cached snapshot.
@@ -45,10 +49,24 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
   }
 
   func requestSnapshot() {
+    snapshot = receivedSnapshot?.forCurrentDay()
+    guard !isSendingAction, !isRequestingSnapshot,
+      WCSession.isSupported(), WCSession.default.activationState == .activated,
+      WCSession.default.isReachable
+    else {
+      return
+    }
     sendAction("getGoalsSnapshot", goalId: nil)
   }
 
   func track(_ goal: WatchGoalSnapshot) {
+    snapshot = receivedSnapshot?.forCurrentDay()
+    guard !isSendingAction,
+      let goal = snapshot?.goals.first(where: { $0.id == goal.id }),
+      goal.canTrackToday, !goal.isCompletedToday
+    else {
+      return
+    }
     let action = goal.type == .multipleTimesPerDay ? "trackOne" : "markDone"
     sendAction(action, goalId: goal.id)
   }
@@ -65,14 +83,17 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
   }
 
   private func sendAction(_ action: String, goalId: String?) {
-    guard WCSession.isSupported(), WCSession.default.isReachable else {
-      #if targetEnvironment(simulator)
-      applyActionLocally(action, goalId: goalId)
-      #else
+    guard WCSession.isSupported() else {
       statusMessage = "Open True Focus on iPhone."
-      #endif
       return
     }
+
+    #if targetEnvironment(simulator)
+    if !WCSession.default.isReachable {
+      applyActionLocally(action, goalId: goalId)
+      return
+    }
+    #endif
 
     let request = WatchActionRequest(
       version: 1,
@@ -82,16 +103,48 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
       sentAt: ISO8601DateFormatter().string(from: Date())
     )
 
-    guard
-      let data = try? encoder.encode(request),
-      let payload = String(data: data, encoding: .utf8)
-    else {
-      statusMessage = "Try again."
+    if action == "getGoalsSnapshot" {
+      isRequestingSnapshot = true
+      sendRequest(request)
       return
     }
 
     isSendingAction = true
     statusMessage = nil
+    pendingTrackAction = request
+    sendPendingTrackAction()
+
+    // The first tap may precede session activation/reachability. Hold it briefly
+    // and send it once when connected; never retry a possibly delivered mutation.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+      guard let self = self, self.pendingTrackAction?.actionId == request.actionId else {
+        return
+      }
+      self.pendingTrackAction = nil
+      self.isSendingAction = false
+      self.statusMessage = "Open True Focus on iPhone."
+    }
+  }
+
+  private func sendPendingTrackAction() {
+    guard let request = pendingTrackAction,
+      WCSession.default.activationState == .activated, WCSession.default.isReachable
+    else {
+      return
+    }
+    pendingTrackAction = nil
+    sendRequest(request)
+  }
+
+  private func sendRequest(_ request: WatchActionRequest) {
+    let isSnapshotRequest = request.action == "getGoalsSnapshot"
+    guard
+      let data = try? encoder.encode(request),
+      let payload = String(data: data, encoding: .utf8)
+    else {
+      finishRequest(isSnapshotRequest: isSnapshotRequest, errorMessage: "Try again.")
+      return
+    }
 
     WCSession.default.sendMessage(
       [
@@ -100,13 +153,15 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
       ],
       replyHandler: { [weak self] reply in
         DispatchQueue.main.async {
-          self?.handleActionReply(reply)
+          self?.handleActionReply(reply, request: request)
         }
       },
       errorHandler: { [weak self] _ in
         DispatchQueue.main.async {
-          self?.isSendingAction = false
-          self?.statusMessage = "Open True Focus on iPhone."
+          self?.finishRequest(
+            isSnapshotRequest: isSnapshotRequest,
+            errorMessage: "Open True Focus on iPhone."
+          )
         }
       }
     )
@@ -149,11 +204,13 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
 
     var goals = currentSnapshot.goals
     goals[index] = updatedGoal
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
     applySnapshot(
       WatchAppSnapshot(
         version: currentSnapshot.version,
-        generatedAt: ISO8601DateFormatter().string(from: Date()),
+        generatedAt: formatter.string(from: Date()),
         trueFocusGoalId: currentSnapshot.trueFocusGoalId,
         goals: goals
       )
@@ -165,20 +222,26 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
   }
   #endif
 
-  private func handleActionReply(_ reply: [String: Any]) {
-    isSendingAction = false
-
+  private func handleActionReply(_ reply: [String: Any], request: WatchActionRequest) {
+    let isSnapshotRequest = request.action == "getGoalsSnapshot"
     guard
       let payload = reply["payload"] as? String,
       let data = payload.data(using: .utf8),
-      let response = try? decoder.decode(WatchActionResponse.self, from: data)
+      let response = try? decoder.decode(WatchActionResponse.self, from: data),
+      response.actionId == request.actionId
     else {
-      statusMessage = "Try again."
+      finishRequest(isSnapshotRequest: isSnapshotRequest, errorMessage: "Try again.")
       return
     }
 
+    finishRequest(isSnapshotRequest: isSnapshotRequest)
     if let snapshot = response.snapshot {
       applySnapshot(snapshot)
+    }
+
+    // A background refresh must not disable tracking or announce a saved action.
+    guard !isSnapshotRequest else {
+      return
     }
 
     if response.ok {
@@ -190,8 +253,26 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
     }
   }
 
+  private func finishRequest(isSnapshotRequest: Bool, errorMessage: String? = nil) {
+    if isSnapshotRequest {
+      isRequestingSnapshot = false
+    } else {
+      isSendingAction = false
+      if let errorMessage = errorMessage {
+        statusMessage = errorMessage
+      }
+    }
+  }
+
   private func applySnapshot(_ nextSnapshot: WatchAppSnapshot) {
-    snapshot = nextSnapshot
+    // Application context and action replies can arrive out of order.
+    if let currentDate = receivedSnapshot?.generatedDate,
+      let nextDate = nextSnapshot.generatedDate, nextDate < currentDate
+    {
+      return
+    }
+    receivedSnapshot = nextSnapshot
+    snapshot = nextSnapshot.forCurrentDay()
     if selectedGoalId == nil || !nextSnapshot.goals.contains(where: { $0.id == selectedGoalId }) {
       selectedGoalId = defaultGoalId(in: nextSnapshot)
     }
@@ -254,8 +335,21 @@ final class WatchConnectivityController: NSObject, ObservableObject, WCSessionDe
     activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
   ) {
-    if activationState == .activated {
-      requestSnapshot()
+    DispatchQueue.main.async {
+      if activationState == .activated {
+        self.handleSnapshotMessage(session.receivedApplicationContext)
+        self.sendPendingTrackAction()
+        self.requestSnapshot()
+      }
+    }
+  }
+
+  func sessionReachabilityDidChange(_ session: WCSession) {
+    DispatchQueue.main.async {
+      if session.isReachable {
+        self.sendPendingTrackAction()
+        self.requestSnapshot()
+      }
     }
   }
 

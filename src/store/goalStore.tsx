@@ -316,6 +316,7 @@ export function GoalProvider({
   const [trueFocusGoalId, setTrueFocusGoalIdState] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [hasLoadedGoals, setHasLoadedGoals] = useState(!autoLoad);
   const goalsRef = useRef<Goal[]>([]);
   const trueFocusGoalIdRef = useRef<string | null>(null);
   const selectedGoalIdRef = useRef<string | null>(null);
@@ -444,6 +445,7 @@ export function GoalProvider({
       await syncNativeSurfaces(emptyState);
     } finally {
       setIsLoading(false);
+      setHasLoadedGoals(true);
     }
   }, [applyState, persistState, syncNativeSurfaces]);
 
@@ -1053,6 +1055,12 @@ export function GoalProvider({
   );
 
   React.useEffect(() => {
+    // Native keeps the first Watch request pending while storage is loading.
+    // Registering sooner can return an empty snapshot or reject an existing goal.
+    if (!hasLoadedGoals) {
+      return;
+    }
+
     return addWatchActionListener(async (request) => {
       if (request.action === 'getGoalsSnapshot') {
         return buildWatchActionResponse(request, true);
@@ -1114,7 +1122,7 @@ export function GoalProvider({
 
       return buildWatchActionResponse(request, false, 'unknown', 'Try again.');
     });
-  }, [buildWatchActionResponse, markDone, trackOneToday, undoTodayProgress]);
+  }, [hasLoadedGoals, buildWatchActionResponse, markDone, trackOneToday, undoTodayProgress]);
 
   React.useEffect(() => {
     if (autoLoad) {
